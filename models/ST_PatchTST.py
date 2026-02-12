@@ -42,6 +42,7 @@ def setup_logging(log_dir: str):
     return logging.getLogger(__name__)
 
 def build_physics_masks(num_grids_h, num_grids_w, num_vars=3):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     num_grids = num_grids_h * num_grids_w
     num_nodes = num_grids * num_vars
     
