@@ -1,10 +1,10 @@
 # 当前正在做什么
-`run_models.sh` 已按 PEMS04 的写法补成多预测窗口版本，依次跑 `pred_len=12/24/48/96`。
+在 `TimeFilter` 中接入统一空间增强模块 `CSPAdapter`，并完成最小可运行验证。
 
 # 上次停在哪个位置
-2026-04-17：已把 radar 的单窗口脚本改成多窗口循环脚本，准备继续按后台方式启动。
+2026-04-17：已完成 `CSPAdapter` 主干接入、真实 radar 数据 smoke 测试和调试脚本 `scripts/csp_adapter_smoke.py`。
 
 # 近期关键决定和原因
-- **多窗口训练**：参考 `PEMS04.sh`，在一个脚本里顺序训练 `pred_len=12/24/48/96`。
-- **参数补充**：补入 `dropout=0.1`、`top_p=0.0`、`learning_rate=0.0005`、`use_norm=0`。
-- **稳态配置保留**：为兼顾 1000 个监测点场景，继续保留 `patch_len=96`、`batch_size=1`、`d_model=32`、`d_ff=64`。
+- **统一空间模块**：连续坐标编码、patch prompt 注入、物理半径掩码合并到 `models/csp_adapter.py`，减少主干改动。
+- **数据路径统一**：时序数据使用 `dataset/radar/sim_radar_hourly_displacement.csv`，坐标使用 `dataset/radar/sim_nodes_static.csv`。
+- **兼容性优先**：`use_csp_adapter=False` 保持原始 baseline；`Dataset_Custom` 兼容 `report_time` 时间列；非 M4 的 `short_term_forecast` 复用通用监督预测流程。

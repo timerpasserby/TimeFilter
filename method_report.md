@@ -1,11 +1,18 @@
 # 方法记录
 
-- 任务：`long_term_forecast`
+- 任务：在 `TimeFilter` 中接入统一空间增强模块 `CSPAdapter`
 - 模型：`TimeFilter`
-- 数据集：`custom`，文件为 `data/radar.csv`
+- 数据集：`custom`，主时序文件为 `dataset/radar/sim_radar_hourly_displacement.csv`，空间坐标文件为 `dataset/radar/sim_nodes_static.csv`
 - 输入方式：`features=M`，表示多监测点输入、多监测点输出
-- 关键配置：`seq_len=96`、`label_len=48`、`pred_len=12/24/48/96`、`enc_in=1000`、`dec_in=1000`、`c_out=1000`
-- 训练设置：`batch_size=1`、`train_epochs=1`、`num_workers=0`、`learning_rate=0.0005`、`dropout=0.1`、`top_p=0.0`、`use_norm=0`
-- 参数选择：参考 `scripts/PEMS04.sh` 补充多窗口训练方式和部分超参，同时保留更稳的 `patch_len=96`、`d_model=32`、`d_ff=64`
-- 评估方式：训练后执行测试，并输出 `mse`、`mae`
-- 当前状态：脚本已改为顺序训练 4 组预测窗口
+- 空间方法：将连续空间坐标编码、patch 级 prompt 注入、物理半径掩码合并为统一模块 `CSPAdapter`
+- 编码方式：坐标先中心化，对 `z` 轴做可学习缩放，再经 `RFF + MLP` 得到 `spatial_embed`
+- 掩码方式：基于三维欧氏距离构建 `physical_mask_radius` 半径掩码，并注入图学习与路由矩阵计算
+- 调试方式：支持 `return_debug=True` 和 `csp_debug=1`，输出坐标 shape、空间 embedding shape、token shape、掩码比例、邻接统计、NaN/Inf 状态
+- 兼容性处理：`use_csp_adapter=False` 时保持原始 baseline 路径；`short_term_forecast + custom` 复用通用监督预测流程
+- 数据兼容处理：`Dataset_Custom` 兼容 `report_time` 等时间列别名，不再要求 radar 数据额外改成 `date`
+- 基础验证：
+  - dummy forward/backward：`use_csp_adapter=False/True` 均可跑通
+  - baseline 对照：与 Git 中原始 `models/TimeFilter.py` 输出最大差异为 `0.0`
+  - smoke 训练：真实 radar 数据上跑 `3` 步，loss 从 `2.888062` 变化到 `2.723043`
+  - CPU 单步耗时：forward 约 `0.16~0.25s`，backward 约 `0.06~0.13s`
+- 当前状态：CSPAdapter 已完成主干接入、前反向验证、短训练 smoke 和调试链路

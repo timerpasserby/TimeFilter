@@ -1,3 +1,6 @@
+"""这个工具文件负责把当前实验参数格式化输出到训练日志中。"""
+
+# 按模块打印当前实验参数，方便训练日志回溯。
 def print_args(args):
     print("\033[1m" + "Basic Config" + "\033[0m")
     print(f'  {"Task Name:":<20}{args.task_name:<20}{"Is Training:":<20}{args.is_training:<20}')
@@ -38,6 +41,16 @@ def print_args(args):
     print(f'  {"Distil:":<20}{args.distil:<20}{"Dropout:":<20}{args.dropout:<20}')
     print(f'  {"Embed:":<20}{args.embed:<20}{"Activation:":<20}{args.activation:<20}')
     print(f'  {"Output Attention:":<20}{args.output_attention:<20}')
+    print()
+
+    print("\033[1m" + "CSP Adapter" + "\033[0m")
+    print(f'  {"Use CSP:":<20}{args.use_csp_adapter:<20}{"Coords Path:":<20}{args.coords_path:<20}')
+    print(f'  {"Spatial Dim:":<20}{args.spatial_dim:<20}{"RFF Dim:":<20}{args.rff_dim:<20}')
+    print(f'  {"RFF Sigma:":<20}{args.rff_sigma:<20}{"Spatial Hidden:":<20}{args.spatial_hidden_dim:<20}')
+    print(f'  {"Learnable Z:":<20}{args.learnable_z_scale:<20}{"Init Z Scale:":<20}{args.init_z_scale:<20}')
+    print(f'  {"Prompt Alpha:":<20}{args.prompt_alpha:<20}{"Learnable Alpha:":<20}{args.learnable_prompt_alpha:<20}')
+    print(f'  {"Mask Radius:":<20}{args.physical_mask_radius:<20}{"Keep Self Loop:":<20}{args.physical_mask_self_loop:<20}')
+    print(f'  {"CSP Debug:":<20}{args.csp_debug:<20}')
     print()
 
     print("\033[1m" + "Run Parameters" + "\033[0m")

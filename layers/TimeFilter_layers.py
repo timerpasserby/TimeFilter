@@ -1,7 +1,22 @@
+"""这个层文件负责 TimeFilter 的图学习与过滤主干，并支持接入物理半径约束的调试统计。"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions.normal import Normal
+
+
+# 将张量统计成便于日志输出的数值摘要。
+def tensor_stats(tensor):
+    """统计张量的均值、最大值和稀疏度。"""
+    data = tensor.detach()
+    return {
+        'mean': float(data.mean().item()),
+        'max': float(data.max().item()),
+        'sparsity': float((data.abs() < 1e-8).float().mean().item()),
+        'has_nan': bool(torch.isnan(data).any().item()),
+        'has_inf': bool(torch.isinf(data).any().item()),
+    }
 
 class GCN(nn.Module):
     def __init__(self, dim, n_heads):
@@ -149,7 +164,7 @@ class mask_moe(nn.Module):
 
         return top_p_mask, loss
 
-    def forward(self, x, masks=None, is_training=None):
+    def forward(self, x, masks=None, is_training=None, physical_mask=None, debug_info=None):
         # x [B, H, L, L]
         B, H, L, _ = x.shape
         device = x.device
@@ -157,7 +172,13 @@ class mask_moe(nn.Module):
 
         mask_base = torch.eye(L, device=device, dtype=dtype).unsqueeze(0).unsqueeze(0)
         if self.top_p == 0.0:
-            return mask_base, 0.0
+            mask = mask_base
+            if physical_mask is not None:
+                mask = mask * physical_mask.to(dtype=dtype)
+            if debug_info is not None:
+                debug_info['routing_mask_shape'] = list(mask.shape)
+                debug_info['routing_mask_active_ratio'] = float(mask.float().mean().item())
+            return mask, 0.0
         
         x = x.reshape(B * H, L, L)
         gates, loss = self.noisy_top_k_gating(x, is_training)
@@ -177,6 +198,11 @@ class mask_moe(nn.Module):
             masks = torch.stack(masks, dim=0)
 
         mask = torch.einsum('bhli,lid->bhld', gates, masks) + mask_base
+        if physical_mask is not None:
+            mask = mask * physical_mask.to(dtype=dtype)
+        if debug_info is not None:
+            debug_info['routing_mask_shape'] = list(mask.shape)
+            debug_info['routing_mask_active_ratio'] = float(mask.float().mean().item())
 
         return mask, loss
 
@@ -200,12 +226,32 @@ class GraphLearner(nn.Module):
         self.n_vars = n_vars
         self.mask_moe = mask_moe(n_vars, top_p=top_p, in_dim=in_dim)
 
-    def forward(self, x, masks=None, alpha=0.5, is_training=False):
+    def forward(self, x, masks=None, alpha=0.5, is_training=False, physical_mask=None, debug_info=None):
         # x: [B, H, L, D]
         adj = F.gelu(torch.einsum('bhid,bhjd->bhij', self.proj_1(x), self.proj_2(x)))
-        adj = adj * mask_topk(adj, alpha)  # KNN
-        mask, loss = self.mask_moe(adj, masks, is_training)
+        if debug_info is not None:
+            before_stats = tensor_stats(adj)
+            debug_info['adjacency_shape'] = list(adj.shape)
+            debug_info['adj_before_mask_mean'] = before_stats['mean']
+            debug_info['adj_before_mask_max'] = before_stats['max']
+            debug_info['adj_before_mask_sparsity'] = before_stats['sparsity']
+            debug_info['adj_before_mask_has_nan'] = before_stats['has_nan']
+            debug_info['adj_before_mask_has_inf'] = before_stats['has_inf']
+
+        if physical_mask is not None:
+            adj = adj * physical_mask.to(dtype=adj.dtype, device=adj.device)
+
+        adj = adj * mask_topk(adj, alpha)
+        mask, loss = self.mask_moe(adj, masks, is_training, physical_mask=physical_mask, debug_info=debug_info)
         adj = adj * mask
+
+        if debug_info is not None:
+            after_stats = tensor_stats(adj)
+            debug_info['adj_after_mask_mean'] = after_stats['mean']
+            debug_info['adj_after_mask_max'] = after_stats['max']
+            debug_info['adj_after_mask_sparsity'] = after_stats['sparsity']
+            debug_info['adj_after_mask_has_nan'] = after_stats['has_nan']
+            debug_info['adj_after_mask_has_inf'] = after_stats['has_inf']
 
         return adj, loss  # [B, H, L, L]
 
@@ -220,14 +266,30 @@ class GraphFilter(nn.Module):
         self.graph_learner = GraphLearner(self.dim // self.n_heads, n_vars, top_p, in_dim=in_dim)
         self.graph_conv = GCN(self.dim, self.n_heads)
 
-    def forward(self, x, masks=None, alpha=0.5, is_training=False):
+    def forward(self, x, masks=None, alpha=0.5, is_training=False, physical_mask=None, debug_info=None):
         # x: [B, L, D]
         B, L, D = x.shape
 
-        adj, loss = self.graph_learner(x.reshape(B, L, self.n_heads, -1).permute(0, 2, 1, 3), masks, 
-                                       alpha, is_training)  # [B, H, L, L]
+        adj, loss = self.graph_learner(
+            x.reshape(B, L, self.n_heads, -1).permute(0, 2, 1, 3),
+            masks,
+            alpha,
+            is_training,
+            physical_mask=physical_mask,
+            debug_info=debug_info,
+        )
+
+        if physical_mask is not None:
+            adj = adj.masked_fill(~physical_mask.to(dtype=torch.bool, device=adj.device), -1e4)
 
         adj = torch.softmax(adj, dim=-1)
+        if debug_info is not None:
+            softmax_stats = tensor_stats(adj)
+            debug_info['adj_softmax_mean'] = softmax_stats['mean']
+            debug_info['adj_softmax_max'] = softmax_stats['max']
+            debug_info['adj_softmax_sparsity'] = softmax_stats['sparsity']
+            debug_info['adj_softmax_has_nan'] = softmax_stats['has_nan']
+            debug_info['adj_softmax_has_inf'] = softmax_stats['has_inf']
         adj = self.dropout(adj)
         out = self.graph_conv(adj, x)
         return out, loss  # [B, L, D]
@@ -248,9 +310,9 @@ class GraphBlock(nn.Module):
         )
         self.norm2 = nn.LayerNorm(self.dim)
 
-    def forward(self, x, masks=None, alpha=0.5, is_training=False):
+    def forward(self, x, masks=None, alpha=0.5, is_training=False, physical_mask=None, debug_info=None):
         # x: [B, L, D], time_embed: [B, time_embed_dim]
-        out, loss = self.gnn(self.norm1(x), masks, alpha, is_training)
+        out, loss = self.gnn(self.norm1(x), masks, alpha, is_training, physical_mask=physical_mask, debug_info=debug_info)
         x = x + out
         x = x + self.ffn(self.norm2(x))
         return x, loss
@@ -268,11 +330,11 @@ class TimeFilter_Backbone(nn.Module):
         ])
         self.n_blocks = n_blocks
 
-    def forward(self, x, masks=None, alpha=0.5, is_training=False):
+    def forward(self, x, masks=None, alpha=0.5, is_training=False, physical_mask=None, debug_info=None):
         # x: [B, N, T]
         moe_loss = 0.0
         for block in self.blocks:
-            x, loss = block(x, masks, alpha, is_training)
+            x, loss = block(x, masks, alpha, is_training, physical_mask=physical_mask, debug_info=debug_info)
             moe_loss += loss
         moe_loss /= self.n_blocks
-        return x, moe_loss  # [B, N, T]
+        return x, moe_loss, debug_info  # [B, N, T]

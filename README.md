@@ -56,8 +56,14 @@ After training:
 
 ### Radar custom run
 
-`run_models.sh` is wired for the radar dataset. It uses `features=M`, which means multivariate input and multivariate output, so the script does not need to pass `target`.
-The script now follows the multi-horizon pattern used in `scripts/PEMS04.sh` and will run `pred_len` values `12 24 48 96` one by one.
+The radar task now reads its data directly from `dataset/radar/`:
+
+- sequence file: `dataset/radar/sim_radar_hourly_displacement.csv`
+- coordinate file: `dataset/radar/sim_nodes_static.csv`
+
+`run_models.sh` is wired for this radar dataset. It uses `features=M`, which means multivariate input and multivariate output, so the script does not need to pass `target`.
+The script follows the multi-horizon pattern used in `scripts/PEMS04.sh` and will run `pred_len` values `12 24 48 96` one by one.
+For non-M4 custom data, `short_term_forecast` reuses the same supervised forecasting loop as the long-term task, so the radar dataset can be launched with either task name.
 
 To launch it in the background:
 
@@ -66,6 +72,28 @@ nohup bash run_models.sh >/dev/null 2>&1 &
 ```
 
 The full training output is written to `logs/run_models_*.log`.
+
+You can also switch the task type or enable CSPAdapter from the shell:
+
+```shell
+TASK_NAME=short_term_forecast USE_CSP_ADAPTER=1 CSP_DEBUG=1 TOP_P=0.5 nohup bash run_models.sh >/dev/null 2>&1 &
+```
+
+### CSPAdapter smoke test
+
+The repository now includes a minimal script-level verification for the unified spatial module:
+
+```shell
+/opt/homebrew/Caskroom/miniforge/base/envs/tslib/bin/python scripts/csp_adapter_smoke.py --steps 3 --debug
+```
+
+This script checks:
+
+- dummy shape compatibility
+- baseline compatibility against the original committed model when `use_csp_adapter=False`
+- single-batch forward/backward for `use_csp_adapter=False/True`
+- a short real-data smoke training run on `dataset/radar`
+- key debug shapes, mask ratios, adjacency statistics, and forward/backward timing
 
 ## 📚 Citation
 If you find this repo useful, please consider citing our paper as follows:

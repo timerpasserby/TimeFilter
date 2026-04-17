@@ -1,3 +1,5 @@
+"""这个入口脚本负责解析训练参数，并把配置分发到对应的实验类。"""
+
 import argparse
 import os
 import torch
@@ -83,6 +85,21 @@ if __name__ == '__main__':
     parser.add_argument('--patch_len', type=int, default=16, help='length of patch')
     parser.add_argument('--alpha', type=float, default=0.1, help='KNN for Graph Construction')
     parser.add_argument('--top_p', type=float, default=0.5, help='Dynamic Routing in MoE')
+    parser.add_argument('--use_csp_adapter', type=int, default=0, help='whether to enable CSPAdapter')
+    parser.add_argument('--coords_path', type=str, default='./dataset/radar/sim_nodes_static.csv',
+                        help='path of node coordinate file')
+    parser.add_argument('--spatial_dim', type=int, default=64, help='hidden width for CSP spatial branch')
+    parser.add_argument('--rff_dim', type=int, default=64, help='random fourier feature dimension')
+    parser.add_argument('--rff_sigma', type=float, default=50.0, help='sigma for random fourier features')
+    parser.add_argument('--spatial_hidden_dim', type=int, default=128, help='hidden layer size in spatial encoder')
+    parser.add_argument('--learnable_z_scale', type=int, default=1, help='whether z scale is learnable')
+    parser.add_argument('--init_z_scale', type=float, default=1.0, help='initial scale for z axis')
+    parser.add_argument('--prompt_alpha', type=float, default=0.1, help='prompt injection strength')
+    parser.add_argument('--learnable_prompt_alpha', type=int, default=0,
+                        help='whether prompt alpha is learnable')
+    parser.add_argument('--physical_mask_radius', type=float, default=120.0, help='physical radius threshold')
+    parser.add_argument('--physical_mask_self_loop', type=int, default=1, help='whether to keep self loops')
+    parser.add_argument('--csp_debug', type=int, default=0, help='whether to print CSP debug logs')
 
     # optimization
     parser.add_argument('--num_workers', type=int, default=1, help='data loader num workers')
@@ -132,6 +149,11 @@ if __name__ == '__main__':
     parser.add_argument('--extra_tag', type=str, default="", help="Anything extra")
 
     args = parser.parse_args()
+    args.use_csp_adapter = bool(args.use_csp_adapter)
+    args.learnable_z_scale = bool(args.learnable_z_scale)
+    args.learnable_prompt_alpha = bool(args.learnable_prompt_alpha)
+    args.physical_mask_self_loop = bool(args.physical_mask_self_loop)
+    args.csp_debug = bool(args.csp_debug)
     args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
 
     if args.use_gpu and args.use_multi_gpu:
@@ -146,7 +168,8 @@ if __name__ == '__main__':
     if args.task_name == 'long_term_forecast':
         Exp = Exp_Long_Term_Forecast
     elif args.task_name == 'short_term_forecast':
-        Exp = Exp_Short_Term_Forecast
+        # 非 M4 的短期预测任务仍按通用监督学习流程执行，保证 radar 自定义数据可直接运行。
+        Exp = Exp_Short_Term_Forecast if args.data == 'm4' else Exp_Long_Term_Forecast
     else:
         Exp = Exp_Long_Term_Forecast
 

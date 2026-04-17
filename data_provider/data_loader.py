@@ -245,8 +245,14 @@ class Dataset_Custom(Dataset):
 
         # 自定义数据集在 features 为 M/MS 时支持直接使用整张多变量表。
         cols = list(df_raw.columns)
+        # 兼容常见时间列命名，优先统一成 date，避免 radar 数据额外改表头。
         if 'date' not in cols:
-            raise ValueError("custom dataset must contain a 'date' column")
+            alias_candidates = ['report_time', 'datetime', 'time', 'timestamp']
+            alias_col = next((col for col in alias_candidates if col in cols), None)
+            if alias_col is None:
+                raise ValueError("custom dataset must contain a 'date' column or a supported time alias")
+            df_raw = df_raw.rename(columns={alias_col: 'date'})
+            cols = list(df_raw.columns)
         cols.remove('date')
         if self.target in cols:
             cols.remove(self.target)
