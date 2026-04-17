@@ -98,6 +98,29 @@ This script checks:
 
 The short-term forecasting experiment has also been aligned with the reference M4 workflow while keeping compatibility with the current TimeFilter direct-forecast interface.
 
+### Physics-Constrained Weather Injection
+
+The repository now includes an independent weather module for slow-varying exogenous effects:
+
+- main block: `models/weather/weather_injection_block.py`
+- causal weather encoder: `models/weather/causal_conv.py`
+- causal weather cross-attention: `models/weather/causal_cross_attention.py`
+- module guide: `models/weather/README.md`
+
+This block is designed to sit after the CSP-TimeFilter backbone output `H_main` and does not modify the backbone itself.
+
+Run the weather module tests with:
+
+```shell
+/opt/homebrew/Caskroom/miniforge/base/envs/tslib/bin/python -m unittest discover -s tests -p "test_weather_*.py"
+```
+
+Run the minimal weather forward demo with:
+
+```shell
+/opt/homebrew/Caskroom/miniforge/base/envs/tslib/bin/python scripts/weather_injection_demo.py
+```
+
 ## 📚 Citation
 If you find this repo useful, please consider citing our paper as follows:
 ```bibtex

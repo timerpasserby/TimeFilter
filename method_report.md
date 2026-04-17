@@ -7,6 +7,9 @@
 - 空间方法：将连续空间坐标编码、patch 级 prompt 注入、物理半径掩码合并为统一模块 `CSPAdapter`
 - 编码方式：坐标先中心化，对 `z` 轴做可学习缩放，再经 `RFF + MLP` 得到 `spatial_embed`
 - 掩码方式：基于三维欧氏距离构建 `physical_mask_radius` 半径掩码，并注入图学习与路由矩阵计算
+- 天气方法：新增 `PhysicsConstrainedCausalWeatherInjection`，用于在主干输出 `H_main` 基础上建模缓变外生天气影响
+- 天气编码：天气序列先经 `CausalConv1dWeatherEncoder` 做至少两层严格因果卷积，再进入跨注意力或消融分支
+- 天气注入：默认使用 `PhysicsConstrainedCausalCrossAttention`，Query 来自 `H_main`，Key/Value 来自天气编码；消融分支支持 `vanilla_attn` 与 `concat_fusion`
 - 调试方式：支持 `return_debug=True` 和 `csp_debug=1`，输出坐标 shape、空间 embedding shape、token shape、掩码比例、邻接统计、NaN/Inf 状态
 - 兼容性处理：`use_csp_adapter=False` 时保持原始 baseline 路径；`short_term_forecast + custom` 复用通用监督预测流程
 - 数据兼容处理：`Dataset_Custom` 兼容 `report_time` 等时间列别名，不再要求 radar 数据额外改成 `date`
@@ -17,4 +20,5 @@
   - baseline 对照：与 Git 中原始 `models/TimeFilter.py` 输出最大差异为 `0.0`
   - smoke 训练：真实 radar 数据上跑 `3` 步，loss 从 `2.888062` 变化到 `2.723043`
   - CPU 单步耗时：forward 约 `0.16~0.25s`，backward 约 `0.06~0.13s`
-- 当前状态：CSPAdapter 已完成主干接入，长短期预测实验流程都已补齐并通过静态检查
+  - 天气模块测试：`shape / causality / ablation / interpretability` 共 `5` 个测试通过
+- 当前状态：CSPAdapter 已完成主干接入，长短期预测实验流程和天气注入模块都已补齐并通过静态检查

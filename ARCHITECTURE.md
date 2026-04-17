@@ -4,6 +4,7 @@
 
 `run_models.sh` starts the radar experiment, `run.py` parses arguments, `exp/exp_long_term_forecasting.py` runs training and testing, and `data_provider/` prepares the sequences that are fed into `models/TimeFilter.py`.
 When `use_csp_adapter=True`, `models/csp_adapter.py` injects the spatial prior after patch embedding and passes a physical radius mask into the graph-learning backbone.
+The weather block in `models/weather/` is kept fully independent from the backbone and only consumes `H_main` after the CSP-TimeFilter trunk.
 
 ## Module Responsibilities
 
@@ -59,6 +60,30 @@ When `use_csp_adapter=True`, `models/csp_adapter.py` injects the spatial prior a
   - Injects patch-level spatial prompts.
   - Builds the physical radius mask used to suppress long-distance false edges.
 
+- `models/weather/causal_conv.py`
+  - Implements the causal weather encoder.
+  - Uses at least two strictly causal Conv1d layers to model lagged and accumulated weather effects.
+
+- `models/weather/causal_cross_attention.py`
+  - Implements multi-head cross-attention from node hidden states to global weather features.
+  - Applies an explicit lower-triangular causal mask and returns interpretable attention weights.
+
+- `models/weather/weather_injection_block.py`
+  - Packages weather encoding and injection as `PhysicsConstrainedCausalWeatherInjection`.
+  - Supports the main causal-attention version and the `vanilla_attn` / `concat_fusion` ablations.
+
+- `tests/test_weather_shapes.py`
+  - Checks the output shape and attention weight interface.
+
+- `tests/test_weather_causality.py`
+  - Verifies that changing future weather does not affect past outputs.
+
+- `tests/test_weather_ablation.py`
+  - Verifies that both ablation branches can run independently.
+
+- `scripts/weather_injection_demo.py`
+  - Provides a minimal forward demo for the main weather block and both ablations.
+
 - `layers/TimeFilter_layers.py`
   - Keeps the original graph-learning pipeline.
   - Applies the optional physical mask during adjacency construction and routing.
@@ -80,5 +105,7 @@ When `use_csp_adapter=True`, `models/csp_adapter.py` injects the spatial prior a
 - Radar batch runs now iterate over `pred_len=12,24,48,96` in one script.
 - `use_csp_adapter=False` keeps the committed baseline path unchanged.
 - `use_csp_adapter=True` adds coordinate encoding, prompt injection, and physical radius masking without rewriting the TimeFilter backbone.
+- The weather exogenous module is implemented as a post-backbone block so backbone stability is preserved for later ablations.
+- Weather injection uses causal Conv1d plus masked cross-attention instead of raw feature concatenation.
 - CPU execution is used on this machine to avoid GPU/MPS compatibility issues.
 - Logs are kept on disk so long-running runs can be checked after the shell exits.
