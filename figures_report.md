@@ -6,5 +6,6 @@
 - 天气注入模块已返回 `attn_weights`，后续可以直接据此绘制天气因果热力图；本阶段尚未生成实际热力图文件。
 - 爆破注入模块已返回 `e_it` 与 `g_t`，后续可以直接绘制爆破扰动强度热力图和门控开度热力图；本阶段尚未生成实际图片文件。
 - 本阶段新增的是命令整理脚本 `scripts/radar_ablation_pipeline.sh`，不产生新的图表文件。
+- 本阶段新增 Windows 批处理脚本 `run_models_windows.bat` 和 `scripts/radar_ablation_pipeline_windows.bat`，不产生新的图表文件。
 - `scripts/csp_adapter_smoke.py` 输出的是控制台调试统计，不生成图片文件。
 - 当前未生成新的结果图文件。

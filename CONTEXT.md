@@ -1,8 +1,8 @@
 # 当前正在做什么
-在 `TimeFilter` 中整理当前可运行的消融实验命令脚本，并保持主干、天气模块、爆破模块的接口状态说明一致。
+在 `TimeFilter` 中补充 Windows 版本的训练与消融脚本，并保持主干、天气模块、爆破模块的接口状态说明一致。
 
 # 上次停在哪个位置
-2026-04-17：已完成天气模块、爆破模块和对应测试；当前补充统一的消融命令脚本 `scripts/radar_ablation_pipeline.sh`。
+2026-04-17：已完成天气模块、爆破模块和对应测试；当前补充 Windows 版本脚本 `run_models_windows.bat` 和 `scripts/radar_ablation_pipeline_windows.bat`。
 
 # 近期关键决定和原因
 - **统一空间模块**：连续坐标编码、patch prompt 注入、物理半径掩码合并到 `models/csp_adapter.py`，减少主干改动。
@@ -16,3 +16,4 @@
 - **主模型禁用 RNN**：主爆破分支固定为 `解析建模 + gate + bypass`，`GRU` 只保留在 `gru_blast` 消融模式里。
 - **命令统一整理**：当前正式接入训练入口的只有 `baseline / CSP-TimeFilter`，weather / blast 先通过 `scripts/radar_ablation_pipeline.sh` 作为模块级检查统一管理，避免误当成正式训练实验。
 - **设备配置回归默认**：`run_models.sh` 和 `scripts/radar_ablation_pipeline.sh` 不再额外暴露 GPU 或 AMP 参数，直接沿用 `run.py` 的默认设备逻辑。
+- **Windows 固定解释器**：Windows 批处理脚本默认固定 `D:\Anaconda\envs\TLib\python.exe`，避免 Git Bash 误拿到 `/usr/bin/python3` 导致缺少 `torch`。
