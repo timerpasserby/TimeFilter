@@ -6,7 +6,33 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-PYTHON_PATH="/opt/homebrew/Caskroom/miniforge/base/envs/tslib/bin/python"
+# 自动解析当前可用的 Python 解释器，允许外部通过 PYTHON_PATH 覆盖。
+resolve_python_path() {
+  if [ -n "${PYTHON_PATH:-}" ]; then
+    echo "$PYTHON_PATH"
+    return 0
+  fi
+
+  if [ -n "${CONDA_PREFIX:-}" ] && [ -x "${CONDA_PREFIX}/bin/python" ]; then
+    echo "${CONDA_PREFIX}/bin/python"
+    return 0
+  fi
+
+  if [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/python" ]; then
+    echo "${VIRTUAL_ENV}/bin/python"
+    return 0
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    command -v python3
+    return 0
+  fi
+
+  echo "未找到可用的 Python 解释器，请通过环境变量 PYTHON_PATH 显式指定。" >&2
+  exit 1
+}
+
+PYTHON_PATH="$(resolve_python_path)"
 DATA_PATH="./dataset/radar"
 DATA_FILE="sim_radar_hourly_displacement.csv"
 COORDS_FILE="./dataset/radar/sim_nodes_static.csv"
@@ -96,6 +122,7 @@ run_train_case() {
     echo "============================================================"
     echo "开始运行正式训练实验: ${case_tag}"
     echo "task_name=${task_name} use_csp_adapter=${use_csp} pred_len=${pred_len}"
+    echo "Python path=${PYTHON_PATH}"
     echo "日志文件: ${log_file}"
     echo "============================================================"
 

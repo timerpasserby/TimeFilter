@@ -3,7 +3,33 @@
 
 set -euo pipefail
 
-PYTHON_PATH="/opt/homebrew/Caskroom/miniforge/base/envs/tslib/bin/python"
+# 自动解析当前可用的 Python 解释器，允许外部通过 PYTHON_PATH 覆盖。
+resolve_python_path() {
+  if [ -n "${PYTHON_PATH:-}" ]; then
+    echo "$PYTHON_PATH"
+    return 0
+  fi
+
+  if [ -n "${CONDA_PREFIX:-}" ] && [ -x "${CONDA_PREFIX}/bin/python" ]; then
+    echo "${CONDA_PREFIX}/bin/python"
+    return 0
+  fi
+
+  if [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/python" ]; then
+    echo "${VIRTUAL_ENV}/bin/python"
+    return 0
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    command -v python3
+    return 0
+  fi
+
+  echo "未找到可用的 Python 解释器，请通过环境变量 PYTHON_PATH 显式指定。" >&2
+  exit 1
+}
+
+PYTHON_PATH="$(resolve_python_path)"
 DATA_PATH="./dataset/radar"
 DATA_FILE="sim_radar_hourly_displacement.csv"
 COORDS_FILE="./dataset/radar/sim_nodes_static.csv"
@@ -28,11 +54,13 @@ export MPLCONFIGDIR="$LOG_DIR/matplotlib"
 {
 echo "Logging to $LOG_FILE"
 echo "Running TimeFilter on $DATA_FILE..."
+echo "Python path: $PYTHON_PATH"
 
 # 参考 PEMS04 的多预测窗口训练方式，依次运行 2 组预测长度。
 for pred_len in 12 24 
 do
   echo "Starting pred_len=$pred_len"
+
   "$PYTHON_PATH" -u run.py \
     --task_name "$TASK_NAME" \
     --is_training 1 \

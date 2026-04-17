@@ -15,3 +15,4 @@
 - **爆破模块独立**：爆破瞬态扰动模块只消费天气增强后的 `H_exo`，通过解析 `e_it` 后再做门控旁路注入，不改动主干和天气模块。
 - **主模型禁用 RNN**：主爆破分支固定为 `解析建模 + gate + bypass`，`GRU` 只保留在 `gru_blast` 消融模式里。
 - **命令统一整理**：当前正式接入训练入口的只有 `baseline / CSP-TimeFilter`，weather / blast 先通过 `scripts/radar_ablation_pipeline.sh` 作为模块级检查统一管理，避免误当成正式训练实验。
+- **设备配置回归默认**：`run_models.sh` 和 `scripts/radar_ablation_pipeline.sh` 不再额外暴露 GPU 或 AMP 参数，直接沿用 `run.py` 的默认设备逻辑。
