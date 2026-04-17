@@ -1,0 +1,7 @@
+processed_output/
+data/
+
+__pycache__/
+logs/
+.vscode/
+checkpoints/

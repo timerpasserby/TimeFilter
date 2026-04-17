@@ -54,6 +54,19 @@ After training:
 - Numerical results in .npy format can be found in `./results`.
 - A comprehensive summary of quantitative metrics is accessible in `./result_long_term_forecast.txt`.
 
+### Radar custom run
+
+`run_models.sh` is wired for the radar dataset. It uses `features=M`, which means multivariate input and multivariate output, so the script does not need to pass `target`.
+The script now follows the multi-horizon pattern used in `scripts/PEMS04.sh` and will run `pred_len` values `12 24 48 96` one by one.
+
+To launch it in the background:
+
+```shell
+nohup bash run_models.sh >/dev/null 2>&1 &
+```
+
+The full training output is written to `logs/run_models_*.log`.
+
 ## 📚 Citation
 If you find this repo useful, please consider citing our paper as follows:
 ```bibtex

@@ -1,3 +1,7 @@
+"""
+这个数据读取文件负责把不同数据集整理成训练需要的序列样本，和 `data_factory.py`、`run.py` 配合使用。
+"""
+
 import os
 import numpy as np
 import pandas as pd
@@ -239,13 +243,19 @@ class Dataset_Custom(Dataset):
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
 
-        '''
-        df_raw.columns: ['date', ...(other features), target feature]
-        '''
+        # 自定义数据集在 features 为 M/MS 时支持直接使用整张多变量表。
         cols = list(df_raw.columns)
-        cols.remove(self.target)
+        if 'date' not in cols:
+            raise ValueError("custom dataset must contain a 'date' column")
         cols.remove('date')
-        df_raw = df_raw[['date'] + cols + [self.target]]
+        if self.target in cols:
+            cols.remove(self.target)
+            ordered_cols = ['date'] + cols + [self.target]
+        else:
+            if self.features in ['S', 'MS']:
+                raise ValueError(f"target column {self.target!r} not found in custom dataset")
+            ordered_cols = ['date'] + cols
+        df_raw = df_raw[ordered_cols]
         num_train = int(len(df_raw) * 0.7)
         num_test = int(len(df_raw) * 0.2)
         num_vali = len(df_raw) - num_train - num_test

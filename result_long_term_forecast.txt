@@ -1,0 +1,6 @@
+long_term_forecast_radar_timefilter_TimeFilter_custom_ftM_sl96_ll48_pl96_dm32_nh4_el1_dl1_df64_fc1_ebtimeF_dtTrue_Exp_0  
+mse:1.1808338165283203, mae:0.8343506455421448
+
+long_term_forecast_radar_timefilter_TimeFilter_custom_ftM_sl96_ll48_pl96_dm32_nh4_el1_dl1_df64_fc1_ebtimeF_dtTrue_Exp_0  
+mse:1.1795355081558228, mae:0.8339201211929321
+
