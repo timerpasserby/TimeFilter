@@ -5,6 +5,7 @@
 `run_models.sh` starts the radar experiment, `run.py` parses arguments, `exp/exp_long_term_forecasting.py` runs training and testing, and `data_provider/` prepares the sequences that are fed into `models/TimeFilter.py`.
 When `use_csp_adapter=True`, `models/csp_adapter.py` injects the spatial prior after patch embedding and passes a physical radius mask into the graph-learning backbone.
 The weather block in `models/weather/` is kept fully independent from the backbone and only consumes `H_main` after the CSP-TimeFilter trunk.
+The blast block in `models/blast/` is also independent from the backbone and consumes `H_exo` after the weather block.
 
 ## Module Responsibilities
 
@@ -16,6 +17,12 @@ The weather block in `models/weather/` is kept fully independent from the backbo
   - Writes logs to `logs/run_models_*.log`.
   - Runs in the background when started with `nohup`.
   - Accepts environment overrides such as `TASK_NAME`, `USE_CSP_ADAPTER`, `CSP_DEBUG`, `PHYSICAL_MASK_RADIUS`, and `TOP_P`.
+
+- `scripts/radar_ablation_pipeline.sh`
+  - Organizes the currently available radar ablation commands into one shell entrypoint.
+  - Runs the formal train-and-test ablations for `baseline` and `CSP-TimeFilter`.
+  - Runs module-level verification for the independent weather and blast blocks.
+  - Writes grouped logs to `logs/ablation_pipeline/`.
 
 - `run.py`
   - Defines the command-line interface.
@@ -72,6 +79,18 @@ The weather block in `models/weather/` is kept fully independent from the backbo
   - Packages weather encoding and injection as `PhysicsConstrainedCausalWeatherInjection`.
   - Supports the main causal-attention version and the `vanilla_attn` / `concat_fusion` ablations.
 
+- `models/blast/blast_analytic_encoder.py`
+  - Parses blast logs into node-level continuous disturbance `e_it`.
+  - Uses distance decay, temporal decay, and an explicit causal event mask.
+
+- `models/blast/step_response_gate.py`
+  - Maps `e_it` to the step-response gate `g_t` and feature increment `delta_H_blast`.
+  - Applies bypass residual injection in the form `H_final = H_exo + g_t * delta_H_blast`.
+
+- `models/blast/blast_injection_block.py`
+  - Packages analytic encoding, gate injection, and ablations as `PhysicsInformedStepResponseBlastInjection`.
+  - Supports the main `main` mode and the `wo_gate` / `gru_blast` ablations.
+
 - `tests/test_weather_shapes.py`
   - Checks the output shape and attention weight interface.
 
@@ -81,8 +100,23 @@ The weather block in `models/weather/` is kept fully independent from the backbo
 - `tests/test_weather_ablation.py`
   - Verifies that both ablation branches can run independently.
 
+- `tests/test_blast_shapes.py`
+  - Checks the output shape of `H_final`、`e_it`、`g_t` and `delta_H_blast`.
+
+- `tests/test_blast_causality.py`
+  - Verifies that changing future blast events does not affect past outputs.
+
+- `tests/test_blast_monotonicity.py`
+  - Verifies blast distance decay, intensity monotonicity, and temporal decay.
+
+- `tests/test_blast_ablation.py`
+  - Verifies that both `wo_gate` and `gru_blast` can run independently.
+
 - `scripts/weather_injection_demo.py`
   - Provides a minimal forward demo for the main weather block and both ablations.
+
+- `scripts/blast_injection_demo.py`
+  - Provides a minimal forward demo for the blast main branch and both ablations.
 
 - `layers/TimeFilter_layers.py`
   - Keeps the original graph-learning pipeline.
@@ -107,5 +141,8 @@ The weather block in `models/weather/` is kept fully independent from the backbo
 - `use_csp_adapter=True` adds coordinate encoding, prompt injection, and physical radius masking without rewriting the TimeFilter backbone.
 - The weather exogenous module is implemented as a post-backbone block so backbone stability is preserved for later ablations.
 - Weather injection uses causal Conv1d plus masked cross-attention instead of raw feature concatenation.
+- The blast transient module is implemented after `H_exo`, not inside the backbone, so the CSP-TimeFilter trunk remains stable.
+- Blast injection explicitly separates analytic disturbance computation `e_it` from gated bypass injection, and keeps `GRU` only in an ablation branch.
 - CPU execution is used on this machine to avoid GPU/MPS compatibility issues.
 - Logs are kept on disk so long-running runs can be checked after the shell exits.
+- The ablation shell script only treats `baseline / CSP-TimeFilter` as formal training experiments, because weather and blast are not yet connected to the full training graph.
