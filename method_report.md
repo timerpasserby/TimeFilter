@@ -14,7 +14,6 @@
 - 爆破解析：先用 `BlastAnalyticEncoder` 基于爆破位置、强度、时刻和节点坐标显式计算 `e_it`，其中包含空间高斯衰减、时间指数衰减和因果事件掩码
 - 爆破注入：主模型使用 `StepResponseGate + BypassResidualInjection` 完成 `H_final = H_exo + g_t * delta_H_blast`，消融分支支持 `wo_gate` 与 `gru_blast`
 - 实验脚本整理：新增 `scripts/radar_ablation_pipeline.sh`，统一整理当前可用的正式训练消融命令与 weather / blast 模块级检查命令
-- Windows 兼容整理：新增 `run_models_windows.bat` 和 `scripts/radar_ablation_pipeline_windows.bat`，默认固定 `D:\Anaconda\envs\TLib\python.exe`，避免 Git Bash 误用 `/usr/bin/python3`
 - 调试方式：支持 `return_debug=True` 和 `csp_debug=1`，输出坐标 shape、空间 embedding shape、token shape、掩码比例、邻接统计、NaN/Inf 状态
 - 兼容性处理：`use_csp_adapter=False` 时保持原始 baseline 路径；`short_term_forecast + custom` 复用通用监督预测流程
 - 数据兼容处理：`Dataset_Custom` 兼容 `report_time` 等时间列别名，不再要求 radar 数据额外改成 `date`

@@ -66,17 +66,6 @@ The radar task now reads its data directly from `dataset/radar/`:
 At the moment, `run_models.sh` loops through `pred_len=12 24`.
 For non-M4 custom data, `short_term_forecast` reuses the same supervised forecasting loop as the long-term task, so the radar dataset can be launched with either task name.
 
-For Windows, the repository now also provides batch-script entrypoints with a fixed interpreter path:
-
-- `run_models_windows.bat`
-- `scripts/radar_ablation_pipeline_windows.bat`
-
-Their default Python path is:
-
-```text
-D:\Anaconda\envs\TLib\python.exe
-```
-
 If you want one entrypoint for the currently available ablation pipelines, use:
 
 ```shell
@@ -107,14 +96,6 @@ To launch the organized ablation pipeline in the background:
 
 ```shell
 nohup bash scripts/radar_ablation_pipeline.sh train_all &
-```
-
-Windows examples:
-
-```bat
-run_models_windows.bat
-scripts\radar_ablation_pipeline_windows.bat help
-scripts\radar_ablation_pipeline_windows.bat train_all
 ```
 
 ### CSPAdapter smoke test

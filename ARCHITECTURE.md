@@ -18,21 +18,11 @@ The blast block in `models/blast/` is also independent from the backbone and con
   - Runs in the background when started with `nohup`.
   - Accepts environment overrides such as `TASK_NAME`, `USE_CSP_ADAPTER`, `CSP_DEBUG`, `PHYSICAL_MASK_RADIUS`, and `TOP_P`.
 
-- `run_models_windows.bat`
-  - Launches the radar experiment on Windows.
-  - Uses the fixed interpreter path `D:\Anaconda\envs\TLib\python.exe` by default.
-  - Writes logs to `logs\run_models_*.log`.
-
 - `scripts/radar_ablation_pipeline.sh`
   - Organizes the currently available radar ablation commands into one shell entrypoint.
   - Runs the formal train-and-test ablations for `baseline` and `CSP-TimeFilter`.
   - Runs module-level verification for the independent weather and blast blocks.
   - Writes grouped logs to `logs/ablation_pipeline/`.
-
-- `scripts/radar_ablation_pipeline_windows.bat`
-  - Organizes the currently available radar ablation commands into one Windows batch entrypoint.
-  - Uses the fixed interpreter path `D:\Anaconda\envs\TLib\python.exe` by default.
-  - Writes grouped logs to `logs\ablation_pipeline\`.
 
 - `run.py`
   - Defines the command-line interface.
@@ -156,4 +146,3 @@ The blast block in `models/blast/` is also independent from the backbone and con
 - CPU execution is used on this machine to avoid GPU/MPS compatibility issues.
 - Logs are kept on disk so long-running runs can be checked after the shell exits.
 - The ablation shell script only treats `baseline / CSP-TimeFilter` as formal training experiments, because weather and blast are not yet connected to the full training graph.
-- Windows batch scripts use a fixed Python interpreter path to avoid Git Bash picking `/usr/bin/python3` instead of the intended Conda environment.
