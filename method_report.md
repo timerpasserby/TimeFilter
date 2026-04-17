@@ -10,9 +10,11 @@
 - 调试方式：支持 `return_debug=True` 和 `csp_debug=1`，输出坐标 shape、空间 embedding shape、token shape、掩码比例、邻接统计、NaN/Inf 状态
 - 兼容性处理：`use_csp_adapter=False` 时保持原始 baseline 路径；`short_term_forecast + custom` 复用通用监督预测流程
 - 数据兼容处理：`Dataset_Custom` 兼容 `report_time` 等时间列别名，不再要求 radar 数据额外改成 `date`
+- 实验流程补全：`exp/exp_long_term_forecasting.py` 已按参考实现补入 `AMP` 分支、可选 `DTW`、测试可视化、`metrics/pred/true/input` 落盘和更稳的反归一化逻辑，同时保留 TimeFilter 的 `masks + moe_loss` 调用方式
+- 短期流程补全：`exp/exp_short_term_forecasting.py` 已按参考实现补齐 M4 风格训练、验证、测试和结果导出流程，并增加对 TimeFilter 直接预测接口的兼容，不再强依赖 encoder-decoder 调用方式
 - 基础验证：
   - dummy forward/backward：`use_csp_adapter=False/True` 均可跑通
   - baseline 对照：与 Git 中原始 `models/TimeFilter.py` 输出最大差异为 `0.0`
   - smoke 训练：真实 radar 数据上跑 `3` 步，loss 从 `2.888062` 变化到 `2.723043`
   - CPU 单步耗时：forward 约 `0.16~0.25s`，backward 约 `0.06~0.13s`
-- 当前状态：CSPAdapter 已完成主干接入、前反向验证、短训练 smoke 和调试链路
+- 当前状态：CSPAdapter 已完成主干接入，长短期预测实验流程都已补齐并通过静态检查

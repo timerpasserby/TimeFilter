@@ -53,6 +53,7 @@ After training:
 - Your trained model will be safely stored in `./checkpoints`.
 - Numerical results in .npy format can be found in `./results`.
 - A comprehensive summary of quantitative metrics is accessible in `./result_long_term_forecast.txt`.
+- The long-term forecasting experiment now also saves `input.npy`, `pred.npy`, `true.npy`, `metrics.npy`, and optional DTW statistics when enabled.
 
 ### Radar custom run
 
@@ -94,6 +95,8 @@ This script checks:
 - single-batch forward/backward for `use_csp_adapter=False/True`
 - a short real-data smoke training run on `dataset/radar`
 - key debug shapes, mask ratios, adjacency statistics, and forward/backward timing
+
+The short-term forecasting experiment has also been aligned with the reference M4 workflow while keeping compatibility with the current TimeFilter direct-forecast interface.
 
 ## 📚 Citation
 If you find this repo useful, please consider citing our paper as follows:

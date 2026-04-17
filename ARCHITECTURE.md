@@ -38,6 +38,13 @@ When `use_csp_adapter=True`, `models/csp_adapter.py` injects the spatial prior a
 - `exp/exp_long_term_forecasting.py`
   - Implements the long-term forecasting training loop.
   - Handles validation, checkpoint saving, and testing.
+  - Keeps the TimeFilter-specific `masks + moe_loss` training path.
+  - Supports AMP, optional DTW evaluation, visualization output, and `metrics/input/pred/true` result saving.
+
+- `exp/exp_short_term_forecasting.py`
+  - Implements the short-term forecasting training loop.
+  - Keeps the M4-style validation and result-export flow.
+  - Adapts the forward path so TimeFilter can be called as a direct forecaster instead of an encoder-decoder model.
 
 - `models/TimeFilter.py`
   - Defines the TimeFilter model.
