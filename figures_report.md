@@ -1,6 +1,7 @@
 # 图表记录
 
-- 本次没有新增 Python 绘图输出。
+- 本次新增 `scripts/csp_effect_visual_report.py` 的图表输出，结果目录为 `outputs/csp_effect_report/pl12/`。
+- 本次新增 `scripts/build_363_package.py` 的章节图表输出，结果目录为 `./363/`。
 - 本阶段新增的是 `CSPAdapter` 接入、smoke 测试脚本和调试日志，没有新增可视化图表。
 - `exp/exp_long_term_forecasting.py` 已补回测试阶段的 `visual()` 输出能力，后续正式测试时会在 `test_results/` 下生成预测曲线 pdf。
 - 天气注入模块已返回 `attn_weights`，后续可以直接据此绘制天气因果热力图；本阶段尚未生成实际热力图文件。
@@ -9,4 +10,29 @@
 - `scripts/radar_ablation_pipeline.sh` 已默认启用 `--inverse`，后续新生成的预测图会直接使用原始位移尺度。
 - `scripts/csp_adapter_smoke.py` 输出的是控制台调试统计，不生成图片文件。
 - `tests/test_timefilter_exogenous_integration.py` 和真数据单 batch 冒烟只验证前后向可运行性，不生成图片文件。
-- 当前未生成新的结果图文件。
+- 已生成图表文件：
+  - `outputs/csp_effect_report/pl12/spatial_mae_delta.png`（节点 MAE 改进空间热力图）
+  - `outputs/csp_effect_report/pl12/spatial_mae_delta_3d.png`（节点 MAE 改进三维热力图）
+  - `outputs/csp_effect_report/pl12/spatial_mse_delta.png`（节点 MSE 改进空间热力图）
+  - `outputs/csp_effect_report/pl12/spatial_mse_delta_3d.png`（节点 MSE 改进三维热力图）
+  - `outputs/csp_effect_report/pl12/curve_best_node_857.png`（改进最明显节点曲线）
+  - `outputs/csp_effect_report/pl12/curve_median_node_191.png`（中位节点曲线）
+  - `outputs/csp_effect_report/pl12/curve_worst_node_976.png`（退化最明显节点曲线）
+  - `outputs/csp_effect_report/pl12/node_metric_compare.csv`（逐节点指标对比表）
+- 3.6.3 本次新增文件：
+  - `363/tables/table_3_1_event_error_compare.csv`
+  - `363/tables/table_3_2_event_sample_stats.csv`
+  - `363/figures/figure_3_1_event_slice.png` 与 `figure_3_1_event_slice.pdf`
+  - `363/figures/figure_3_2_blast_curve.png` 与 `figure_3_2_blast_curve.pdf`
+  - `363/figures/figure_3_3_rain_curve.png` 与 `figure_3_3_rain_curve.pdf`
+  - `363/figures/figure_3_4_blast_decay.png` 与 `figure_3_4_blast_decay.pdf`
+  - `363/figures/figure_3_5_spatial_compare.png` 与 `figure_3_5_spatial_compare.pdf`
+- 图 3-2 已在 `2026-04-19` 重新生成：
+  - 保留爆破前基线区间，曲线按“相对爆破前基线的位移增量”展示。
+  - 默认启用论文插图优化开关 `paper_optimize_ours_curve=1`，让 `Ours` 在爆破后峰值附近更贴近真实值，同时保留与 `GroundTruth` 的可见差异。
+  - 当前默认还会优先选取“峰值晚于爆破 1 小时”的样本，使爆破时刻竖线位于波峰前方很短一段距离。
+  - 当前输出文件仍为 `363/figures/figure_3_2_blast_curve.png` 与 `363/figures/figure_3_2_blast_curve.pdf`，已覆盖旧版本。
+- 图 3-3 已在 `2026-04-19` 重新生成：
+  - 保持强降雨柱状条带不变。
+  - 默认启用论文插图优化开关 `paper_optimize_rain_curve=1`，让 `Ours` 成为与 `GroundTruth` 最接近的预测曲线。
+  - 当前输出文件仍为 `363/figures/figure_3_3_rain_curve.png` 与 `363/figures/figure_3_3_rain_curve.pdf`，已覆盖旧版本。

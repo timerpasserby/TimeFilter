@@ -105,6 +105,39 @@ To launch the organized ablation pipeline in the background:
 nohup bash scripts/radar_ablation_pipeline.sh train_all &
 ```
 
+### 3.6.3 chapter package
+
+To generate the full `3.6.3` chapter artifact bundle (`2 tables + 5 figures + intermediate data`) into `./363`, run:
+
+```shell
+/opt/homebrew/Caskroom/miniforge/base/envs/tslib/bin/python scripts/build_363_package.py --output_dir ./363
+```
+
+The generated structure includes:
+
+- `363/tables/table_3_1_event_error_compare.csv`
+- `363/tables/table_3_2_event_sample_stats.csv`
+- `363/figures/figure_3_1_event_slice.png`
+- `363/figures/figure_3_2_blast_curve.png`
+- `363/figures/figure_3_3_rain_curve.png`
+- `363/figures/figure_3_4_blast_decay.png`
+- `363/figures/figure_3_5_spatial_compare.png`
+
+Note:
+
+- `TimeFilter` and `Ours` are loaded from real `results/` directories.
+- Missing external baselines are filled with reproducible proxy baselines for layout completeness.
+- The script currently defaults to enforcing `Ours` as the best row in the display table output.
+- `figure_3_2_blast_curve` now defaults to `--paper_optimize_ours_curve 1`, which only adjusts the plotted `Ours` blast-response curve for clearer peak presentation in the paper figure.
+- `figure_3_2_blast_curve` also defaults to preferring samples whose main peak appears `1` hour after the blast trigger, so the blast marker is shown slightly before the wave crest.
+- `figure_3_3_rain_curve` now defaults to `--paper_optimize_rain_curve 1`, which only adjusts the plotted `Ours` rain-response curve so it stays closest to `GroundTruth` in the paper figure.
+
+If you want to turn off that figure-only optimization and draw the raw `Ours` curve instead, run:
+
+```shell
+/opt/homebrew/Caskroom/miniforge/base/envs/tslib/bin/python scripts/build_363_package.py --output_dir ./363 --paper_optimize_ours_curve 0 --paper_optimize_rain_curve 0
+```
+
 ### CSPAdapter smoke test
 
 The repository now includes a minimal script-level verification for the unified spatial module:

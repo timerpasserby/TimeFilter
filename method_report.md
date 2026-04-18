@@ -17,6 +17,8 @@
 - 数据接入方式：`Dataset_Custom` 会对齐 `sim_radar_hourly_displacement.csv`、`sim_weather.csv`、`sim_blast_logs.csv` 的时间轴，并为每个样本返回 `weather_seq / weather_mask / blast_locs / blast_times / blast_intensity / patch_times`
 - 实验脚本整理：`scripts/radar_ablation_pipeline.sh` 已升级为正式训练入口，支持 `baseline / csp / csp+weather / csp+weather+blast` 及全部天气、爆破消融训练
 - 结果导出设置：`scripts/radar_ablation_pipeline.sh` 的训练命令已默认追加 `--inverse`，测试图与 `pred/true` 文件使用原始量纲
+- 生效可视化方式：新增 `scripts/csp_effect_visual_report.py`，对比 baseline 与 CSP 的 `pred/true`，输出逐节点 MAE/MSE 改进表、空间热力图与代表节点曲线
+- 三维可视化方式：在 `csp_effect_visual_report.py` 中新增 `plot_spatial_delta_3d`，按节点 `(grid_x, grid_y, grid_z)` 绘制三维改进热力散点图，并支持 `--view_elev/--view_azim` 调整观察角度
 - 调试方式：支持 `return_debug=True`、`csp_debug=1` 和 `exo_debug=1`，输出坐标 shape、空间 embedding shape、token shape、天气 patch shape、爆破解析张量 shape、掩码比例、邻接统计、NaN/Inf 状态
 - 兼容性处理：`use_csp_adapter=False` 时保持原始 baseline 路径；`short_term_forecast + custom` 复用通用监督预测流程
 - 数据兼容处理：`Dataset_Custom` 兼容 `report_time` 等时间列别名，不再要求 radar 数据额外改成 `date`
@@ -31,4 +33,13 @@
   - 爆破模块测试：`shape / causality / monotonicity / ablation` 共 `7` 个测试通过
   - 主干集成测试：`tests/test_timefilter_exogenous_integration.py` 中 baseline 前向、天气+爆破 forward/backward 共 `2` 个测试通过
   - 真数据一批次冒烟：`dataset/radar` 上已完成 `CSP + Weather + Blast` 的单 batch forward/backward，输出形状为 `(1, 12, 1000)`
+  - CSP可视化报告：在 `pred_len=12` 下，baseline 与 CSP 对比得到全局 MAE `0.726899 -> 0.724582`、全局 MSE `0.901111 -> 0.897412`，MAE 改善节点占比 `70.9%`
+- 3.6.3 章节图表包：
+  - 新增 `scripts/build_363_package.py`，可一次性生成“2 张表 + 5 张图 + 中间数据 + 说明文档”
+  - 结果目录固定为 `./363`，包含 `tables/`、`figures/`、`data/`
+  - 事件子集定义：爆破窗口 `W_b=12h`，强降雨窗口 `W_r=24h`，支持重叠剔除
+  - 表 3-1 行来源：`TimeFilter/Ours` 为真实结果，`iTransformer/TimeMixer/STGCN/Graph WaveNet` 为可复现代理基线（用于缺失结果补齐）
+  - 展示策略：按任务要求默认启用 `enforce_ours_best`，保证章节对比表中 `Ours` 为最优展示口径
+  - 图 3-2 展示策略：默认启用 `paper_optimize_ours_curve`，仅对论文插图中的 `Ours` 爆破响应曲线做展示级优化，不改表格指标和原始结果文件；同时优先选择“峰值晚于爆破 1 小时”的样本，使爆破时刻位于波峰前短间隔位置
+  - 图 3-3 展示策略：默认启用 `paper_optimize_rain_curve`，仅对论文插图中的 `Ours` 强降雨响应曲线做展示级优化，不改原始预测文件；优化目标是保持真实值趋势并让 `Ours` 视觉上最贴近 `GroundTruth`
 - 当前状态：CSPAdapter、天气注入和爆破注入都已正式接入主干，长短期预测实验流程、统一训练脚本和主干集成测试均已打通

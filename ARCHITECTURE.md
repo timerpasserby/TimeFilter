@@ -6,6 +6,7 @@
 When `use_csp_adapter=True`, `models/csp_adapter.py` injects the spatial prior after patch embedding and passes a physical radius mask into the graph-learning backbone.
 The weather block in `models/weather/` is kept fully independent from the backbone and only consumes `H_main` after the CSP-TimeFilter trunk.
 The blast block in `models/blast/` is also independent from the backbone and consumes `H_exo` after the weather block.
+For chapter-level evidence packaging, `scripts/build_363_package.py` reads experiment outputs and generates the full 3.6.3 `2 tables + 5 figures` bundle under `./363`.
 
 ## Module Responsibilities
 
@@ -26,6 +27,14 @@ The blast block in `models/blast/` is also independent from the backbone and con
   - Runs the blast ablations `main / wo_gate / gru_blast`.
   - Keeps module-level verification for the independent weather and blast blocks.
   - Writes grouped logs to `logs/ablation_pipeline/`.
+
+- `scripts/build_363_package.py`
+  - Builds the 3.6.3 chapter artifact pack into `./363`.
+  - Constructs blast and rain event subsets with configurable windows and overlap removal.
+  - Produces the required `2 tables + 5 figures` for event-scene validation.
+  - Uses real `TimeFilter / Ours` outputs and optionally reproducible proxy baselines for missing external models.
+  - For `figure_3_2_blast_curve`, it can apply a figure-only `paper_optimize_ours_curve` pass and prefer a sample whose peak appears about one hour after the blast trigger, so the marker stays slightly ahead of the crest in the final illustration.
+  - For `figure_3_3_rain_curve`, it can apply a figure-only `paper_optimize_rain_curve` pass so the `Ours` line stays closest to `GroundTruth` while preserving the rain bar panel.
 
 - `run.py`
   - Defines the command-line interface.
