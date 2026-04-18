@@ -63,7 +63,7 @@ The radar task now reads its data directly from `dataset/radar/`:
 - coordinate file: `dataset/radar/sim_nodes_static.csv`
 
 `run_models.sh` is wired for this radar dataset. It uses `features=M`, which means multivariate input and multivariate output, so the script does not need to pass `target`.
-At the moment, `run_models.sh` loops through `pred_len=12 24`.
+At the moment, `run_models.sh` loops through `pred_len=12 24 48 96`.
 For non-M4 custom data, `short_term_forecast` reuses the same supervised forecasting loop as the long-term task, so the radar dataset can be launched with either task name.
 
 If you want one entrypoint for the currently available ablation pipelines, use:
@@ -74,8 +74,9 @@ bash scripts/radar_ablation_pipeline.sh help
 
 This script groups:
 
-- formal train-and-test ablations that already connect to `run.py`: `baseline / CSP-TimeFilter`
-- module-level checks that are not yet wired into the full training graph: `weather / blast`
+- formal train-and-test ablations that already connect to `run.py`: `baseline / CSP-TimeFilter / CSP+Weather / CSP+Weather+Blast`
+- weather ablations: `causal_attn / vanilla_attn / concat_fusion`
+- blast ablations: `main / wo_gate / gru_blast`
 - default `pred_len` coverage `12 24 48 96`
 
 To launch it in the background:
@@ -90,6 +91,12 @@ You can also switch the task type or enable CSPAdapter from the shell:
 
 ```shell
 TASK_NAME=short_term_forecast USE_CSP_ADAPTER=1 CSP_DEBUG=1 TOP_P=0.5 nohup bash run_models.sh &
+```
+
+You can also turn on weather and blast injection from the shell:
+
+```shell
+USE_CSP_ADAPTER=1 USE_WEATHER_MODULE=1 USE_BLAST_MODULE=1 BLAST_MODE=main nohup bash run_models.sh &
 ```
 
 To launch the organized ablation pipeline in the background:
@@ -126,6 +133,7 @@ The repository now includes an independent weather module for slow-varying exoge
 - module guide: `models/weather/README.md`
 
 This block is designed to sit after the CSP-TimeFilter backbone output `H_main` and does not modify the backbone itself.
+It is now connected to the main TimeFilter training graph through `models/TimeFilter.py` and `Dataset_Custom`.
 
 Run the weather module tests with:
 
@@ -149,6 +157,7 @@ The repository now includes an independent blast module for transient disturbanc
 - module guide: `models/blast/README.md`
 
 This block is designed to sit after the weather-enhanced hidden state `H_exo` and keeps the CSP-TimeFilter backbone unchanged.
+It is now connected to the main TimeFilter training graph through `models/TimeFilter.py` and `Dataset_Custom`.
 
 Run the blast module tests with:
 
@@ -160,6 +169,12 @@ Run the minimal blast forward demo with:
 
 ```shell
 /opt/homebrew/Caskroom/miniforge/base/envs/tslib/bin/python scripts/blast_injection_demo.py
+```
+
+Run the backbone integration test with:
+
+```shell
+/opt/homebrew/Caskroom/miniforge/base/envs/tslib/bin/python -m unittest tests.test_timefilter_exogenous_integration
 ```
 
 ## 📚 Citation

@@ -233,26 +233,160 @@ class Dataset_Custom(Dataset):
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
+        self.use_weather_module = bool(getattr(args, 'use_weather_module', False))
+        self.use_blast_module = bool(getattr(args, 'use_blast_module', False))
+        self.extra_inputs_enabled = self.use_weather_module or self.use_blast_module
+        self.patch_len = int(getattr(args, 'patch_len', self.seq_len))
+        self.patch_stride = self.patch_len
+        self.num_patches = int((self.seq_len - self.patch_len) / self.patch_stride + 1)
+        self.patch_end_indices = np.arange(
+            self.patch_len - 1,
+            self.patch_len - 1 + self.num_patches * self.patch_stride,
+            self.patch_stride,
+            dtype=np.int64,
+        )
+        self.blast_max_events = int(getattr(args, 'blast_max_events', 64))
+        self.weather_feature_names = ['rainfall', 'temperature', 'humidity']
+        self.weather_x = None
+        self.weather_mask = None
+        self.blast_events = None
+        self.segment_dates = None
 
         self.root_path = root_path
         self.data_path = data_path
         self.__read_data__()
 
+    # 统一识别并转换时间列，避免不同自定义表头带来的额外分支。
+    def _normalize_date_column(self, data_frame):
+        """把输入表中的时间列统一成 date。"""
+        normalized = data_frame.copy()
+        if 'date' in normalized.columns:
+            normalized['date'] = pd.to_datetime(normalized['date'])
+            return normalized
+
+        alias_candidates = ['report_time', 'datetime', 'time', 'timestamp']
+        alias_col = next((col for col in alias_candidates if col in normalized.columns), None)
+        if alias_col is None:
+            raise ValueError("custom dataset must contain a 'date' column or a supported time alias")
+        normalized = normalized.rename(columns={alias_col: 'date'})
+        normalized['date'] = pd.to_datetime(normalized['date'])
+        return normalized
+
+    # 读取并对齐天气数据，为每个样本提供同窗口天气序列。
+    def _load_weather_side_data(self, all_dates, border1s, border2s, border1, border2):
+        """按主序列时间轴对齐天气序列，并只保留当前切分区间。"""
+        weather_path = getattr(self.args, 'weather_path', '')
+        if not weather_path:
+            raise ValueError('use_weather_module=True 时必须提供 weather_path。')
+        if not os.path.exists(weather_path):
+            raise FileNotFoundError(f'天气文件不存在: {weather_path}')
+
+        weather_frame = self._normalize_date_column(pd.read_csv(weather_path))
+        required_columns = set(self.weather_feature_names)
+        if not required_columns.issubset(set(weather_frame.columns)):
+            raise ValueError(
+                f'天气文件缺少必要列，当前需要 {self.weather_feature_names}，实际为 {weather_frame.columns.tolist()}'
+            )
+
+        weather_frame = weather_frame[['date'] + self.weather_feature_names].drop_duplicates(subset='date', keep='last')
+        aligned_dates = pd.DataFrame({'date': all_dates.reset_index(drop=True)})
+        aligned_weather = aligned_dates.merge(weather_frame, on='date', how='left', sort=False)
+
+        observed_mask = (~aligned_weather[self.weather_feature_names].isna().any(axis=1)).astype(np.float32).to_numpy()
+        filled_weather = aligned_weather[self.weather_feature_names].ffill().bfill().fillna(0.0)
+
+        weather_scaler = StandardScaler()
+        weather_scaler.fit(filled_weather.iloc[border1s[0]:border2s[0]].values)
+        weather_values = weather_scaler.transform(filled_weather.values).astype(np.float32)
+        weather_mask = observed_mask.astype(np.float32).reshape(-1, 1)
+
+        self.weather_x = weather_values[border1:border2]
+        self.weather_mask = weather_mask[border1:border2]
+
+    # 读取爆破日志，供每个样本按自己的历史窗口裁切事件列表。
+    def _load_blast_side_data(self):
+        """加载并清洗爆破事件日志。"""
+        blast_path = getattr(self.args, 'blast_path', '')
+        if not blast_path:
+            raise ValueError('use_blast_module=True 时必须提供 blast_path。')
+        if not os.path.exists(blast_path):
+            raise FileNotFoundError(f'爆破文件不存在: {blast_path}')
+
+        blast_frame = self._normalize_date_column(pd.read_csv(blast_path))
+        coordinate_candidates = [
+            ['location_x', 'location_y', 'location_z'],
+            ['grid_x', 'grid_y', 'grid_z'],
+            ['x', 'y', 'z'],
+        ]
+        coordinate_columns = next(
+            (columns for columns in coordinate_candidates if all(column in blast_frame.columns for column in columns)),
+            None,
+        )
+        if coordinate_columns is None or 'intensity' not in blast_frame.columns:
+            raise ValueError(
+                '爆破文件必须包含位置列和 intensity 列，支持的位置列命名为 '
+                "['location_x', 'location_y', 'location_z']、['grid_x', 'grid_y', 'grid_z'] 或 ['x', 'y', 'z']。"
+            )
+
+        self.blast_events = (
+            blast_frame[['date'] + coordinate_columns + ['intensity']]
+            .rename(columns={
+                coordinate_columns[0]: 'coord_x',
+                coordinate_columns[1]: 'coord_y',
+                coordinate_columns[2]: 'coord_z',
+            })
+            .sort_values('date')
+            .reset_index(drop=True)
+        )
+
+    # 根据当前样本时间窗口构建对齐后的爆破输入。
+    def _build_blast_window_inputs(self, seq_dates):
+        """把当前样本窗口内的爆破事件整理成定长张量。"""
+        seq_start = seq_dates.iloc[0]
+        seq_end = seq_dates.iloc[-1]
+        window_events = self.blast_events[
+            (self.blast_events['date'] >= seq_start) & (self.blast_events['date'] <= seq_end)
+        ].tail(self.blast_max_events)
+
+        blast_locs = np.zeros((self.blast_max_events, 3), dtype=np.float32)
+        blast_times = np.zeros((self.blast_max_events,), dtype=np.float32)
+        blast_intensity = np.zeros((self.blast_max_events,), dtype=np.float32)
+
+        if not window_events.empty:
+            event_count = len(window_events)
+            blast_locs[:event_count] = window_events[['coord_x', 'coord_y', 'coord_z']].to_numpy(dtype=np.float32)
+            relative_hours = ((window_events['date'] - seq_start).dt.total_seconds() / 3600.0).to_numpy(dtype=np.float32)
+            blast_times[:event_count] = relative_hours
+            blast_intensity[:event_count] = window_events['intensity'].to_numpy(dtype=np.float32)
+
+        patch_dates = seq_dates.iloc[self.patch_end_indices]
+        patch_times = ((patch_dates - seq_start).dt.total_seconds() / 3600.0).to_numpy(dtype=np.float32)
+        return blast_locs, blast_times, blast_intensity, patch_times
+
+    # 整理当前样本对应的天气与爆破侧信息。
+    def _build_extra_inputs(self, s_begin, s_end):
+        """根据样本窗口返回模型需要的额外输入字典。"""
+        extra_inputs = {}
+        if self.use_weather_module:
+            extra_inputs['weather_seq'] = self.weather_x[s_begin:s_end].astype(np.float32)
+            extra_inputs['weather_mask'] = self.weather_mask[s_begin:s_end].astype(np.float32)
+
+        if self.use_blast_module:
+            seq_dates = self.segment_dates.iloc[s_begin:s_end].reset_index(drop=True)
+            blast_locs, blast_times, blast_intensity, patch_times = self._build_blast_window_inputs(seq_dates)
+            extra_inputs['blast_locs'] = blast_locs
+            extra_inputs['blast_times'] = blast_times
+            extra_inputs['blast_intensity'] = blast_intensity
+            extra_inputs['patch_times'] = patch_times
+        return extra_inputs
+
     def __read_data__(self):
         self.scaler = StandardScaler()
-        df_raw = pd.read_csv(os.path.join(self.root_path,
-                                          self.data_path))
+        df_raw = pd.read_csv(os.path.join(self.root_path, self.data_path))
+        df_raw = self._normalize_date_column(df_raw)
 
         # 自定义数据集在 features 为 M/MS 时支持直接使用整张多变量表。
         cols = list(df_raw.columns)
-        # 兼容常见时间列命名，优先统一成 date，避免 radar 数据额外改表头。
-        if 'date' not in cols:
-            alias_candidates = ['report_time', 'datetime', 'time', 'timestamp']
-            alias_col = next((col for col in alias_candidates if col in cols), None)
-            if alias_col is None:
-                raise ValueError("custom dataset must contain a 'date' column or a supported time alias")
-            df_raw = df_raw.rename(columns={alias_col: 'date'})
-            cols = list(df_raw.columns)
         cols.remove('date')
         if self.target in cols:
             cols.remove(self.target)
@@ -261,7 +395,7 @@ class Dataset_Custom(Dataset):
             if self.features in ['S', 'MS']:
                 raise ValueError(f"target column {self.target!r} not found in custom dataset")
             ordered_cols = ['date'] + cols
-        df_raw = df_raw[ordered_cols]
+        df_raw = df_raw[ordered_cols].copy()
         num_train = int(len(df_raw) * 0.7)
         num_test = int(len(df_raw) * 0.2)
         num_vali = len(df_raw) - num_train - num_test
@@ -283,7 +417,7 @@ class Dataset_Custom(Dataset):
         else:
             data = df_data.values
 
-        df_stamp = df_raw[['date']][border1:border2]
+        df_stamp = df_raw[['date']][border1:border2].copy()
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
         if self.timeenc == 0:
             df_stamp['month'] = df_stamp.date.apply(lambda row: row.month, 1)
@@ -297,11 +431,18 @@ class Dataset_Custom(Dataset):
 
         self.data_x = data[border1:border2]
         self.data_y = data[border1:border2]
+        self.segment_dates = df_raw['date'].iloc[border1:border2].reset_index(drop=True)
 
         if self.set_type == 0 and self.args.augmentation_ratio > 0:
+            if self.extra_inputs_enabled:
+                raise ValueError('启用天气或爆破模块时，当前暂不支持对 custom 数据集同时做序列增强。')
             self.data_x, self.data_y, augmentation_tags = run_augmentation_single(self.data_x, self.data_y, self.args)
 
         self.data_stamp = data_stamp
+        if self.use_weather_module:
+            self._load_weather_side_data(df_raw['date'], border1s, border2s, border1, border2)
+        if self.use_blast_module:
+            self._load_blast_side_data()
 
     def __getitem__(self, index):
         s_begin = index
@@ -314,6 +455,9 @@ class Dataset_Custom(Dataset):
         seq_x_mark = self.data_stamp[s_begin:s_end]
         seq_y_mark = self.data_stamp[r_begin:r_end]
 
+        if self.extra_inputs_enabled:
+            extra_inputs = self._build_extra_inputs(s_begin, s_end)
+            return seq_x, seq_y, seq_x_mark, seq_y_mark, extra_inputs
         return seq_x, seq_y, seq_x_mark, seq_y_mark
 
     def __len__(self):

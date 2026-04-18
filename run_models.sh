@@ -33,6 +33,8 @@ PYTHON_PATH="$(resolve_python_path)"
 DATA_PATH="./dataset/radar"
 DATA_FILE="sim_radar_hourly_displacement.csv"
 COORDS_FILE="./dataset/radar/sim_nodes_static.csv"
+WEATHER_FILE="./dataset/radar/sim_weather.csv"
+BLAST_FILE="./dataset/radar/sim_blast_logs.csv"
 LOG_DIR="./logs"
 LOG_FILE="$LOG_DIR/run_models_$(date +%Y%m%d_%H%M%S).log"
 MODEL_NAME="TimeFilter"
@@ -43,9 +45,16 @@ DEC_IN=1000
 C_OUT=1000
 TASK_NAME="${TASK_NAME:-long_term_forecast}"
 USE_CSP_ADAPTER="${USE_CSP_ADAPTER:-0}"
+USE_WEATHER_MODULE="${USE_WEATHER_MODULE:-0}"
+WEATHER_ABLATION_MODE="${WEATHER_ABLATION_MODE:-causal_attn}"
+USE_BLAST_MODULE="${USE_BLAST_MODULE:-0}"
+BLAST_MODE="${BLAST_MODE:-main}"
+BLAST_MAX_EVENTS="${BLAST_MAX_EVENTS:-64}"
 CSP_DEBUG="${CSP_DEBUG:-0}"
+EXO_DEBUG="${EXO_DEBUG:-0}"
 PHYSICAL_MASK_RADIUS="${PHYSICAL_MASK_RADIUS:-120.0}"
 TOP_P="${TOP_P:-0.5}"
+PRED_LENS="${PRED_LENS:-12 24 48 96}"
 
 mkdir -p "$LOG_DIR"
 mkdir -p "$LOG_DIR/matplotlib"
@@ -56,10 +65,12 @@ echo "Logging to $LOG_FILE"
 echo "Running TimeFilter on $DATA_FILE..."
 echo "Python path: $PYTHON_PATH"
 
-# 参考 PEMS04 的多预测窗口训练方式，依次运行 2 组预测长度。
-for pred_len in 12 24 
+# 参考 PEMS04 的多预测窗口训练方式，依次运行 4 组预测长度。
+for pred_len in $PRED_LENS
 do
   echo "Starting pred_len=$pred_len"
+  echo "use_csp_adapter=$USE_CSP_ADAPTER use_weather_module=$USE_WEATHER_MODULE weather_mode=$WEATHER_ABLATION_MODE"
+  echo "use_blast_module=$USE_BLAST_MODULE blast_mode=$BLAST_MODE"
 
   "$PYTHON_PATH" -u run.py \
     --task_name "$TASK_NAME" \
@@ -93,6 +104,14 @@ do
     --use_csp_adapter "$USE_CSP_ADAPTER" \
     --coords_path "$COORDS_FILE" \
     --physical_mask_radius "$PHYSICAL_MASK_RADIUS" \
-    --csp_debug "$CSP_DEBUG"
+    --csp_debug "$CSP_DEBUG" \
+    --use_weather_module "$USE_WEATHER_MODULE" \
+    --weather_path "$WEATHER_FILE" \
+    --weather_ablation_mode "$WEATHER_ABLATION_MODE" \
+    --use_blast_module "$USE_BLAST_MODULE" \
+    --blast_path "$BLAST_FILE" \
+    --blast_max_events "$BLAST_MAX_EVENTS" \
+    --blast_mode "$BLAST_MODE" \
+    --exo_debug "$EXO_DEBUG"
 done
 } 2>&1 | tee -a "$LOG_FILE"

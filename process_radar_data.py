@@ -81,13 +81,14 @@ def save_outputs(radar_df, weather_df, blast_df, output_dir):
 
 def main():
     """执行分离式数据处理主流程。"""
-    output_dir = 'dataset/radar_sim'
+    output_dir = 'data'
     ensure_output_dir(output_dir)
 
     print("1. 加载原始数据...")
-    radar_df = load_radar_data('sim_radar_hourly_displacement.csv')
-    weather_df = load_weather_data('sim_weather.csv')
-    blast_df = load_and_aggregate_blast_data('sim_blast_logs.csv')
+    data_dir = 'dataset/radar'
+    radar_df = load_radar_data(os.path.join(data_dir, 'sim_radar_hourly_displacement.csv'))
+    weather_df = load_weather_data(os.path.join(data_dir, 'sim_weather.csv'))
+    blast_df = load_and_aggregate_blast_data(os.path.join(data_dir, 'sim_blast_logs.csv'))
 
     print("2. 生成纯雷达数据（仅时间列 + 1000节点列）...")
     pure_radar_df = build_pure_radar_frame(radar_df)

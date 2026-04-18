@@ -87,12 +87,44 @@ class Exp_Short_Term_Forecast(Exp_Basic):
             masks.append(torch.stack([same_node, same_patch, others], dim=0))
         return torch.stack(masks, dim=0)
 
+    # 兼容普通 batch 与带额外输入字典的 batch。
+    def _unpack_batch(self, batch):
+        """统一拆分 DataLoader 返回的 batch。"""
+        if not isinstance(batch, (list, tuple)):
+            raise ValueError(f'期望 DataLoader 返回 list/tuple，实际为 {type(batch)}')
+        if len(batch) == 4:
+            batch_x, batch_y, batch_x_mark, batch_y_mark = batch
+            extra_inputs = None
+        elif len(batch) == 5:
+            batch_x, batch_y, batch_x_mark, batch_y_mark, extra_inputs = batch
+        else:
+            raise ValueError(f'不支持的 batch 长度: {len(batch)}')
+        return batch_x, batch_y, batch_x_mark, batch_y_mark, extra_inputs
+
+    # 把额外输入字典里的张量搬到当前设备。
+    def _move_extra_inputs(self, extra_inputs):
+        """递归地把天气和爆破侧信息搬到训练设备。"""
+        if extra_inputs is None:
+            return None
+        moved_inputs = {}
+        for key, value in extra_inputs.items():
+            if torch.is_tensor(value):
+                moved_inputs[key] = value.float().to(self.device)
+            else:
+                moved_inputs[key] = value
+        return moved_inputs
+
     # 按模型接口执行一次前向推理。
-    def _forward_model(self, batch_x, batch_y=None, is_training=False):
+    def _forward_model(self, batch_x, batch_y=None, is_training=False, extra_inputs=None):
         """兼容直接预测模型与 encoder-decoder 模型的前向调用。"""
         if self.args.model == 'TimeFilter':
             with torch.cuda.amp.autocast(enabled=self.args.use_amp and self.args.use_gpu):
-                outputs, moe_loss = self.model(batch_x, self.masks, is_training=is_training)
+                outputs, moe_loss = self.model(
+                    batch_x,
+                    self.masks,
+                    is_training=is_training,
+                    extra_inputs=extra_inputs,
+                )
             return outputs, moe_loss
 
         if batch_y is None:
@@ -194,15 +226,22 @@ class Exp_Short_Term_Forecast(Exp_Basic):
 
             self.model.train()
             epoch_time = time.time()
-            for batch_index, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
+            for batch_index, batch in enumerate(train_loader):
+                batch_x, batch_y, batch_x_mark, batch_y_mark, extra_inputs = self._unpack_batch(batch)
                 del batch_x_mark
                 iter_count += 1
                 model_optim.zero_grad()
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float().to(self.device)
                 batch_y_mark = batch_y_mark.float().to(self.device)
+                extra_inputs = self._move_extra_inputs(extra_inputs)
 
-                outputs, moe_loss = self._forward_model(batch_x, batch_y=batch_y, is_training=True)
+                outputs, moe_loss = self._forward_model(
+                    batch_x,
+                    batch_y=batch_y,
+                    is_training=True,
+                    extra_inputs=extra_inputs,
+                )
                 outputs, batch_y = self._slice_prediction(outputs, batch_y)
                 batch_y_mark = self._slice_prediction_mark(batch_y_mark).to(self.device)
 

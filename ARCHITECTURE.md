@@ -13,15 +13,18 @@ The blast block in `models/blast/` is also independent from the backbone and con
   - Launches the radar experiment.
   - Reads the radar sequence table from `dataset/radar/sim_radar_hourly_displacement.csv`.
   - Reads node coordinates from `dataset/radar/sim_nodes_static.csv`.
+  - Can optionally read weather and blast logs from `dataset/radar/sim_weather.csv` and `dataset/radar/sim_blast_logs.csv`.
   - Loops through multiple prediction lengths for the radar task.
   - Writes logs to `logs/run_models_*.log`.
   - Runs in the background when started with `nohup`.
-  - Accepts environment overrides such as `TASK_NAME`, `USE_CSP_ADAPTER`, `CSP_DEBUG`, `PHYSICAL_MASK_RADIUS`, and `TOP_P`.
+  - Accepts environment overrides such as `TASK_NAME`, `USE_CSP_ADAPTER`, `USE_WEATHER_MODULE`, `USE_BLAST_MODULE`, `BLAST_MODE`, `CSP_DEBUG`, `EXO_DEBUG`, `PHYSICAL_MASK_RADIUS`, and `TOP_P`.
 
 - `scripts/radar_ablation_pipeline.sh`
   - Organizes the currently available radar ablation commands into one shell entrypoint.
-  - Runs the formal train-and-test ablations for `baseline` and `CSP-TimeFilter`.
-  - Runs module-level verification for the independent weather and blast blocks.
+  - Runs the formal train-and-test ablations for `baseline`、`CSP-TimeFilter`、`CSP+Weather`、`CSP+Weather+Blast`.
+  - Runs the weather ablations `causal_attn / vanilla_attn / concat_fusion`.
+  - Runs the blast ablations `main / wo_gate / gru_blast`.
+  - Keeps module-level verification for the independent weather and blast blocks.
   - Writes grouped logs to `logs/ablation_pipeline/`.
 
 - `run.py`
@@ -38,6 +41,8 @@ The blast block in `models/blast/` is also independent from the backbone and con
   - Reads and splits the raw data.
   - Builds training, validation, and test sequences.
   - For `custom` data, allows `features=M` to use all monitoring points directly, even when `target` is not present.
+  - Aligns radar sequence timestamps with weather and blast side data when exogenous modules are enabled.
+  - Returns `extra_inputs` containing `weather_seq / weather_mask / blast_locs / blast_times / blast_intensity / patch_times`.
   - Accepts common time-column aliases such as `report_time` and normalizes them to `date`.
 
 - `exp/exp_basic.py`
@@ -143,6 +148,7 @@ The blast block in `models/blast/` is also independent from the backbone and con
 - Weather injection uses causal Conv1d plus masked cross-attention instead of raw feature concatenation.
 - The blast transient module is implemented after `H_exo`, not inside the backbone, so the CSP-TimeFilter trunk remains stable.
 - Blast injection explicitly separates analytic disturbance computation `e_it` from gated bypass injection, and keeps `GRU` only in an ablation branch.
+- The main backbone now reshapes tokens into `[B, P, N, D]`, injects weather and blast in patch space, and then reshapes back before the prediction head.
 - CPU execution is used on this machine to avoid GPU/MPS compatibility issues.
 - Logs are kept on disk so long-running runs can be checked after the shell exits.
-- The ablation shell script only treats `baseline / CSP-TimeFilter` as formal training experiments, because weather and blast are not yet connected to the full training graph.
+- The ablation shell script now treats weather and blast variants as formal training experiments because both modules are connected to the full training graph.

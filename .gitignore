@@ -7,3 +7,6 @@ __pycache__/
 logs/
 .vscode/
 checkpoints/
+
+results/
+test_results/

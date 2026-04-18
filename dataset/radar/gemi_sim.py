@@ -8,7 +8,7 @@ from scipy.signal import savgol_filter
 def simulate_mine_slope_data(num_points=1000, start_date='2024-04-01', end_date='2024-10-01'):
     """生成包含空间拓扑、滞后效应和非线性耦合的边坡模拟数据。"""
     print("开始生成时间轴...")
-    time_index = pd.date_range(start=start_date, end=end_date, freq='H')
+    time_index = pd.date_range(start=start_date, end=end_date, freq='h')
     n_steps = len(time_index)
 
     # 1. 空间坐标与区域划分
@@ -23,10 +23,12 @@ def simulate_mine_slope_data(num_points=1000, start_date='2024-04-01', end_date=
     coords_z = np.clip(coords_z, a_min=0, a_max=None)
 
     active_center = np.array([250, 250])
-    active_radius = 80
+    active_radius = 110
     distances = np.sqrt((coords_x - active_center[0])**2 + (coords_y - active_center[1])**2)
     sensitivity = np.exp(-0.5 * (distances / (active_radius / 2))**2)
-    base_creep = 0.01 + 0.15 * sensitivity
+    # 给非活跃区保留基础响应，避免天气和爆破只在极少数点位出现。
+    geo_transfer = 0.25 + 0.75 * sensitivity
+    base_creep = 0.03 + 0.22 * geo_transfer
 
     # 2. 生成气象数据
     print("生成气象动力学特征...")
@@ -106,7 +108,7 @@ def simulate_mine_slope_data(num_points=1000, start_date='2024-04-01', end_date=
     ttf_matrix = np.full(n_steps, -1, dtype=np.int32)
 
     for t in range(1, n_steps):
-        noise = np.random.normal(0, 0.005, num_points)
+        noise = np.random.normal(0, 0.01, num_points)
 
         if t >= T_f:
             stage_label = 2
@@ -116,7 +118,7 @@ def simulate_mine_slope_data(num_points=1000, start_date='2024-04-01', end_date=
             stage_label = 1
             ttf_label = T_f - t
             accelerated_vel = C_param / (T_f - t + 0.1)
-            creep = base_creep + accelerated_vel * sensitivity
+            creep = base_creep + 1.8 * accelerated_vel * geo_transfer
         else:
             stage_label = 0
             ttf_label = -1
@@ -125,7 +127,19 @@ def simulate_mine_slope_data(num_points=1000, start_date='2024-04-01', end_date=
         label_matrix[t] = stage_label
         ttf_matrix[t] = ttf_label
 
-        rain_response = 0.05 * rain_cumulative[t] * sensitivity
+        # 连续降雨和高湿度会显著降低边坡抗剪强度，因此同时考虑累积降雨、当前降雨和湿度软化。
+        humidity_softening = np.clip((humidity[t] - 70.0) / 20.0, 0.0, 1.5)
+        wet_threshold_boost = 1.0
+        if rain_cumulative[t] > 20:
+            wet_threshold_boost += 0.6
+        if rain_cumulative[t] > 40:
+            wet_threshold_boost += 0.8
+
+        rain_response = (
+            0.12 * rain_cumulative[t] * geo_transfer +
+            0.18 * rainfall[t] * (0.3 + geo_transfer) +
+            0.08 * humidity_softening * geo_transfer
+        ) * wet_threshold_boost
 
         blast_response = np.zeros(num_points)
         if blast_intensity_series[t] > 0:
@@ -140,13 +154,14 @@ def simulate_mine_slope_data(num_points=1000, start_date='2024-04-01', end_date=
                 (coords_z - blast_z) ** 2
             )
 
-            blast_impact = intensity * 0.5 * np.exp(-blast_dist / 150)
-            coupling_factor = 1.0 + 0.08 * rain_cumulative[t]
-            blast_response = blast_impact * coupling_factor * sensitivity
+            # 降低距离衰减速度并放大基础传播项，让非核心区也能看见爆破扰动。
+            blast_impact = intensity * 2.2 * np.exp(-blast_dist / 220) * (0.25 + geo_transfer)
+            coupling_factor = 1.0 + 0.10 * rain_cumulative[t] + 0.35 * humidity_softening
+            blast_response = blast_impact * coupling_factor
 
         if t > 5:
             recent_blasts = blast_intensity_series[t - 5:t]
-            decay_response = np.sum(recent_blasts * np.array([0.01, 0.02, 0.04, 0.08, 0.15])) * sensitivity
+            decay_response = np.sum(recent_blasts * np.array([0.05, 0.10, 0.18, 0.28, 0.45])) * (0.2 + geo_transfer)
         else:
             decay_response = 0
 
@@ -163,8 +178,8 @@ def simulate_mine_slope_data(num_points=1000, start_date='2024-04-01', end_date=
     })
     nodes_df.to_csv('data/radar/sim_nodes_static.csv', index=False)
 
-    radar_df = pd.DataFrame(displacement_matrix, index=time_index, columns=[f'node_{i}' for i in range(num_points)])
-    radar_df.index.name = 'report_time'
+    radar_df = pd.DataFrame(displacement_matrix, columns=[f'node_{i}' for i in range(num_points)])
+    radar_df.insert(0, 'report_time', time_index)
     radar_df.to_csv('data/radar/sim_radar_hourly_displacement.csv', index=False)
     weather_df.to_csv('data/radar/sim_weather.csv', index=False)
     blast_df.to_csv('data/radar/sim_blast_logs.csv', index=False)

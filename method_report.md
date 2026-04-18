@@ -13,8 +13,11 @@
 - 爆破方法：新增 `PhysicsInformedStepResponseBlastInjection`，用于在天气增强隐状态 `H_exo` 基础上建模瞬态爆破扰动
 - 爆破解析：先用 `BlastAnalyticEncoder` 基于爆破位置、强度、时刻和节点坐标显式计算 `e_it`，其中包含空间高斯衰减、时间指数衰减和因果事件掩码
 - 爆破注入：主模型使用 `StepResponseGate + BypassResidualInjection` 完成 `H_final = H_exo + g_t * delta_H_blast`，消融分支支持 `wo_gate` 与 `gru_blast`
-- 实验脚本整理：新增 `scripts/radar_ablation_pipeline.sh`，统一整理当前可用的正式训练消融命令与 weather / blast 模块级检查命令
-- 调试方式：支持 `return_debug=True` 和 `csp_debug=1`，输出坐标 shape、空间 embedding shape、token shape、掩码比例、邻接统计、NaN/Inf 状态
+- 主干接入方式：`models/TimeFilter.py` 先把 backbone 输出 reshape 成 `[B, P, N, D]` 的 patch 网格，天气模块消费 `H_main`，爆破模块消费 `H_exo`，最后再恢复成原始 head 输入格式
+- 数据接入方式：`Dataset_Custom` 会对齐 `sim_radar_hourly_displacement.csv`、`sim_weather.csv`、`sim_blast_logs.csv` 的时间轴，并为每个样本返回 `weather_seq / weather_mask / blast_locs / blast_times / blast_intensity / patch_times`
+- 实验脚本整理：`scripts/radar_ablation_pipeline.sh` 已升级为正式训练入口，支持 `baseline / csp / csp+weather / csp+weather+blast` 及全部天气、爆破消融训练
+- 结果导出设置：`scripts/radar_ablation_pipeline.sh` 的训练命令已默认追加 `--inverse`，测试图与 `pred/true` 文件使用原始量纲
+- 调试方式：支持 `return_debug=True`、`csp_debug=1` 和 `exo_debug=1`，输出坐标 shape、空间 embedding shape、token shape、天气 patch shape、爆破解析张量 shape、掩码比例、邻接统计、NaN/Inf 状态
 - 兼容性处理：`use_csp_adapter=False` 时保持原始 baseline 路径；`short_term_forecast + custom` 复用通用监督预测流程
 - 数据兼容处理：`Dataset_Custom` 兼容 `report_time` 等时间列别名，不再要求 radar 数据额外改成 `date`
 - 实验流程补全：`exp/exp_long_term_forecasting.py` 已按参考实现补入 `AMP` 分支、可选 `DTW`、测试可视化、`metrics/pred/true/input` 落盘和更稳的反归一化逻辑，同时保留 TimeFilter 的 `masks + moe_loss` 调用方式
@@ -26,4 +29,6 @@
   - CPU 单步耗时：forward 约 `0.16~0.25s`，backward 约 `0.06~0.13s`
   - 天气模块测试：`shape / causality / ablation / interpretability` 共 `5` 个测试通过
   - 爆破模块测试：`shape / causality / monotonicity / ablation` 共 `7` 个测试通过
-- 当前状态：CSPAdapter 已完成主干接入，长短期预测实验流程、天气注入模块和爆破注入模块都已补齐并通过静态检查
+  - 主干集成测试：`tests/test_timefilter_exogenous_integration.py` 中 baseline 前向、天气+爆破 forward/backward 共 `2` 个测试通过
+  - 真数据一批次冒烟：`dataset/radar` 上已完成 `CSP + Weather + Blast` 的单 batch forward/backward，输出形状为 `(1, 12, 1000)`
+- 当前状态：CSPAdapter、天气注入和爆破注入都已正式接入主干，长短期预测实验流程、统一训练脚本和主干集成测试均已打通

@@ -53,6 +53,17 @@ def print_args(args):
     print(f'  {"CSP Debug:":<20}{args.csp_debug:<20}')
     print()
 
+    print("\033[1m" + "Exogenous Modules" + "\033[0m")
+    print(f'  {"Use Weather:":<20}{args.use_weather_module:<20}{"Weather Path:":<20}{args.weather_path:<20}')
+    print(f'  {"Weather Dim:":<20}{args.weather_dim:<20}{"Weather Hidden:":<20}{args.weather_hidden_dim:<20}')
+    print(f'  {"Weather Kernel:":<20}{args.weather_kernel_size:<20}{"Weather Dilations:":<20}{str(args.weather_dilations):<20}')
+    print(f'  {"Weather Mode:":<20}{args.weather_ablation_mode:<20}{"Use Blast:":<20}{args.use_blast_module:<20}')
+    print(f'  {"Blast Path:":<20}{args.blast_path:<20}{"Blast Max Events:":<20}{args.blast_max_events:<20}')
+    print(f'  {"Blast Hidden:":<20}{args.blast_hidden_dim:<20}{"Blast Mode:":<20}{args.blast_mode:<20}')
+    print(f'  {"Init Sigma B:":<20}{args.blast_init_sigma_b:<20}{"Init Gamma B:":<20}{args.blast_init_gamma_b:<20}')
+    print(f'  {"Exo Debug:":<20}{args.exo_debug:<20}')
+    print()
+
     print("\033[1m" + "Run Parameters" + "\033[0m")
     print(f'  {"Num Workers:":<20}{args.num_workers:<20}{"Itr:":<20}{args.itr:<20}')
     print(f'  {"Train Epochs:":<20}{args.train_epochs:<20}{"Batch Size:":<20}{args.batch_size:<20}')

@@ -101,9 +101,12 @@ def visual(true, preds=None, name='./pic/test.pdf'):
     Results visualization
     """
     plt.figure()
-    plt.plot(true, label='GroundTruth', linewidth=2)
     if preds is not None:
-        plt.plot(preds, label='Prediction', linewidth=2)
+        # 先画预测，再画真值，保证重合区间由 GroundTruth 覆盖 Prediction。
+        plt.plot(preds, label='Prediction', linewidth=2, color='tab:blue', zorder=2)
+        plt.plot(true, label='GroundTruth', linewidth=2, color='tab:orange', zorder=3)
+    else:
+        plt.plot(true, label='GroundTruth', linewidth=2, color='tab:orange', zorder=3)
     plt.legend()
     plt.savefig(name, bbox_inches='tight')
 

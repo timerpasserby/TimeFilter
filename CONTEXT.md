@@ -1,18 +1,12 @@
 # 当前正在做什么
-在 `TimeFilter` 中整理当前可运行的消融实验命令脚本，并保持主干、天气模块、爆破模块的接口状态说明一致。
+已把天气模块和爆破模块正式接入 `TimeFilter` 主干，并同步补齐训练脚本、数据入口和集成测试。
 
 # 上次停在哪个位置
-2026-04-17：已完成天气模块、爆破模块和对应测试；当前补充统一的消融命令脚本 `scripts/radar_ablation_pipeline.sh`。
+2026-04-17：天气模块、爆破模块和模块级测试已经完成，但它们还没有真正接到主干训练链路里。
 
 # 近期关键决定和原因
-- **统一空间模块**：连续坐标编码、patch prompt 注入、物理半径掩码合并到 `models/csp_adapter.py`，减少主干改动。
-- **数据路径统一**：时序数据使用 `dataset/radar/sim_radar_hourly_displacement.csv`，坐标使用 `dataset/radar/sim_nodes_static.csv`。
-- **兼容性优先**：`use_csp_adapter=False` 保持原始 baseline；`Dataset_Custom` 兼容 `report_time` 时间列；非 M4 的 `short_term_forecast` 复用通用监督预测流程。
-- **实验流程对齐**：参考 `Time-Series-Library` 的长期预测脚本补齐验证、测试和结果保存能力，但不引入 encoder-decoder 接口，继续沿用 TimeFilter 原生前向方式。
-- **短期流程适配**：参考 `Time-Series-Library` 的短期预测脚本补齐 M4 风格验证和结果导出，但对 TimeFilter 走直接预测前向，不再把它当成 encoder-decoder 模型调用。
-- **天气模块独立**：天气缓变影响模块只消费主干输出 `H_main`，不修改主干结构，不重复实现坐标编码与空间提示。
-- **因果性显式保证**：天气先过严格因果卷积，再过显式下三角掩码跨注意力，并用单元测试验证未来天气不会影响过去输出。
-- **爆破模块独立**：爆破瞬态扰动模块只消费天气增强后的 `H_exo`，通过解析 `e_it` 后再做门控旁路注入，不改动主干和天气模块。
-- **主模型禁用 RNN**：主爆破分支固定为 `解析建模 + gate + bypass`，`GRU` 只保留在 `gru_blast` 消融模式里。
-- **命令统一整理**：当前正式接入训练入口的只有 `baseline / CSP-TimeFilter`，weather / blast 先通过 `scripts/radar_ablation_pipeline.sh` 作为模块级检查统一管理，避免误当成正式训练实验。
-- **设备配置回归默认**：`run_models.sh` 和 `scripts/radar_ablation_pipeline.sh` 不再额外暴露 GPU 或 AMP 参数，直接沿用 `run.py` 的默认设备逻辑。
+- **主干最小改动**：天气与爆破都只接在 `TimeFilter_Backbone` 输出后的 patch 级隐状态上，不改 backbone 主结构。
+- **数据侧统一对齐**：`Dataset_Custom` 直接从 `dataset/radar/` 读取主序列、天气和爆破日志，并按同一时间窗口返回 `extra_inputs`。
+- **训练入口正式打通**：`run.py`、`exp/exp_long_term_forecasting.py`、`exp/exp_short_term_forecasting.py` 已支持把天气和爆破侧信息送进模型。
+- **正式消融脚本升级**：`scripts/radar_ablation_pipeline.sh` 现在不仅能跑 baseline / CSP，也能直接跑 weather / blast 主模型与消融训练。
+- **结果尺度统一**：`scripts/radar_ablation_pipeline.sh` 训练命令默认增加 `--inverse`，测试导出的预测结果按原始位移尺度保存。

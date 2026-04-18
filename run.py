@@ -100,6 +100,28 @@ if __name__ == '__main__':
     parser.add_argument('--physical_mask_radius', type=float, default=120.0, help='physical radius threshold')
     parser.add_argument('--physical_mask_self_loop', type=int, default=1, help='whether to keep self loops')
     parser.add_argument('--csp_debug', type=int, default=0, help='whether to print CSP debug logs')
+    parser.add_argument('--use_weather_module', type=int, default=0, help='whether to enable weather injection')
+    parser.add_argument('--weather_path', type=str, default='./dataset/radar/sim_weather.csv',
+                        help='path of aligned weather csv file')
+    parser.add_argument('--weather_dim', type=int, default=3, help='weather feature dimension')
+    parser.add_argument('--weather_hidden_dim', type=int, default=0, help='hidden width in weather encoder')
+    parser.add_argument('--weather_kernel_size', type=int, default=3, help='kernel size of causal weather conv')
+    parser.add_argument('--weather_dilations', type=int, nargs='+', default=[1, 2],
+                        help='dilation list of causal weather conv')
+    parser.add_argument('--weather_ablation_mode', type=str, default='causal_attn',
+                        help='weather ablation mode: causal_attn, vanilla_attn, concat_fusion')
+    parser.add_argument('--use_blast_module', type=int, default=0, help='whether to enable blast injection')
+    parser.add_argument('--blast_path', type=str, default='./dataset/radar/sim_blast_logs.csv',
+                        help='path of blast event log csv file')
+    parser.add_argument('--blast_max_events', type=int, default=64, help='max blast events kept in each sample')
+    parser.add_argument('--blast_hidden_dim', type=int, default=0, help='hidden width in blast gate or gru')
+    parser.add_argument('--blast_mode', type=str, default='main',
+                        help='blast mode: main, wo_gate, gru_blast')
+    parser.add_argument('--blast_init_sigma_b', type=float, default=120.0,
+                        help='initial sigma for blast spatial decay')
+    parser.add_argument('--blast_init_gamma_b', type=float, default=0.1,
+                        help='initial gamma for blast temporal decay')
+    parser.add_argument('--exo_debug', type=int, default=0, help='whether to print weather/blast debug logs')
 
     # optimization
     parser.add_argument('--num_workers', type=int, default=1, help='data loader num workers')
@@ -154,6 +176,9 @@ if __name__ == '__main__':
     args.learnable_prompt_alpha = bool(args.learnable_prompt_alpha)
     args.physical_mask_self_loop = bool(args.physical_mask_self_loop)
     args.csp_debug = bool(args.csp_debug)
+    args.use_weather_module = bool(args.use_weather_module)
+    args.use_blast_module = bool(args.use_blast_module)
+    args.exo_debug = bool(args.exo_debug)
     args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
 
     if args.use_gpu and args.use_multi_gpu:
